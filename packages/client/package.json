@@ -1,0 +1,3 @@
+{"name":"@frappe-saaskit/client","version":"0.0.1","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","exports":{".":{"types":"./dist/index.d.ts","import":"./dist/index.js"}},"files":["dist"],
+"scripts":{"build":"tsup src/index.ts --format esm --dts --clean","test":"vitest run --passWithNoTests","typecheck":"tsc --noEmit"},
+"dependencies":{"openapi-fetch":"^0.13.0"},"peerDependencies":{},"devDependencies":{}}

@@ -1,0 +1,25 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Codegen drift check
+        run: |
+          SPEC="${OPENAPI_PATH:-../saas_core/openapi/v1.yaml}"
+          if [ -f "$SPEC" ]; then export CODEGEN_REQUIRE_SPEC=1; fi
+          pnpm codegen:check
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: No Frappe Cloud references
+        run: pnpm exec vitest run tests
