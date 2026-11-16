@@ -477,3 +477,89 @@ describe('v1.2 additions', () => {
     await expect(client.auth.confirmEmail('k')).resolves.toBeUndefined();
   });
 });
+
+describe('v1.3 additions', () => {
+  it('config is public and reflects options', async () => {
+    const a = mk({ loggedIn: false });
+    const r = await a.get('config');
+    expect(r.status).toBe(200);
+    expect(r.json.message.public_signup).toBe(true);
+    expect(r.json.message.payment_banner).toBeTruthy();
+    const b = mk({ publicSignup: false, paymentBanner: null });
+    expect((await b.get('config')).json.message).toEqual({ public_signup: false, payment_banner: null });
+  });
+  it('signup returns 403 signup_disabled when public signup is off', async () => {
+    const { post } = mk({ loggedIn: false, publicSignup: false });
+    const r = await post('signup', { email: 'new@example.com', password: 'longenough123' });
+    expect(r.status).toBe(403);
+    expect(r.json.error.code).toBe('signup_disabled');
+  });
+  it('subscription and invoices carry payment_mocked', async () => {
+    const { get } = mk();
+    expect((await get('subscription.get', { tenant: 'acme' })).json.message.payment_mocked).toBe(true);
+    expect((await get('invoices.list')).json.message.items[0].payment_mocked).toBe(true);
+  });
+  it('admin.tenants.create provisions, derives slug, lists, 409 on duplicate', async () => {
+    const { post, get } = mk();
+    const r = await post('admin.tenants.create', { owner_email: 'boss@example.com', plan: 'pro', name: 'Zed Corp' });
+    expect(r.status).toBe(202);
+    expect(r.json.message.tenant.slug).toBe('zed-corp');
+    expect(r.json.message.job.kind).toBe('provision');
+    const l = await get('admin.tenants.list', { owner_email: 'boss@example.com' });
+    expect(l.json.message.items.map((t: any) => t.slug)).toEqual(['zed-corp']);
+    expect((await post('admin.tenants.create', { owner_email: 'boss@example.com', plan: 'pro', subdomain: 'zed-corp' })).status).toBe(409);
+  });
+  it('admin.tenants.create validates and signals capacity_exhausted', async () => {
+    const { post } = mk();
+    expect((await post('admin.tenants.create', { owner_email: 'bad', plan: 'pro' })).status).toBe(422);
+    expect((await post('admin.tenants.create', { owner_email: 'a@example.com', plan: 'nope' })).status).toBe(422);
+    const full = mk({ capacityExhausted: true });
+    const r = await full.post('admin.tenants.create', { owner_email: 'a@example.com', plan: 'pro', subdomain: 'fullcap' });
+    expect(r.status).toBe(503);
+    expect(r.json.error.code).toBe('capacity_exhausted');
+  });
+  it('admin.tenants.invite adds an owner invite; 404 unknown tenant; 409 duplicate', async () => {
+    const { post } = mk();
+    const r = await post('admin.tenants.invite', { tenant: 'acme', owner_email: 'x@example.com' });
+    expect(r.status).toBe(201);
+    expect(r.json.message.role).toBe('owner');
+    expect(r.json.message.status).toBe('invited');
+    expect((await post('admin.tenants.invite', { tenant: 'acme', owner_email: 'x@example.com' })).status).toBe(409);
+    expect((await post('admin.tenants.invite', { tenant: 'nope', owner_email: 'y@example.com' })).status).toBe(404);
+  });
+  it('admin endpoints 403 without SaaS Admin, 401 when logged out', async () => {
+    const na = mk({ admin: false });
+    expect((await na.get('admin.tenants.list')).status).toBe(403);
+    expect((await na.post('admin.tenants.create', { owner_email: 'a@example.com', plan: 'pro' })).status).toBe(403);
+    expect((await mk({ loggedIn: false }).get('admin.tenants.list')).status).toBe(401);
+  });
+  it('client round-trip: config + admin', async () => {
+    const { client } = mk();
+    expect((await client.config.get()).public_signup).toBe(true);
+    const r = await client.admin.tenants.create({ owner_email: 'rt@example.com', plan: 'pro', subdomain: 'roundtrip' });
+    expect(r.tenant.slug).toBe('roundtrip');
+    expect((await client.admin.tenants.list()).some((t) => t.slug === 'roundtrip')).toBe(true);
+  });
+});
+
+describe('manual payment + signup modes', () => {
+  const body = { plan: 'pro', interval: 'month', slug: 'manualco', success_url: 'https://a.test/ok', cancel_url: 'https://a.test/no' };
+  it('createSession returns manual client_payload; verifyPayment ok then duplicate', async () => {
+    const { client } = mk();
+    const s: any = await client.checkout.createSession(body as any);
+    expect(s.client_payload).toEqual({ provider: 'manual' });
+    expect(s.payment_mocked).toBe(true);
+    const a = await client.checkout.verifyPayment('manual', { session_id: s.session_id });
+    expect(a).toEqual({ status: 'ok', tenant: s.tenant });
+    expect(await client.checkout.verifyPayment('manual', { session_id: s.session_id })).toEqual({ status: 'duplicate', tenant: s.tenant });
+  });
+  it('signup modes return 403 codes', async () => {
+    const cred = { email: 'a@example.com', password: 'a-long-password' };
+    const code = async (o: object, b: object = cred) => { const r = await mk({ loggedIn: false, ...o }).post('signup', b); return [r.status, r.json.error.code]; };
+    expect(await code({ signupMode: 'disabled' })).toEqual([403, 'signup_disabled']);
+    expect(await code({ signupMode: 'allowlist', signupAllowlist: ['x@example.com'] })).toEqual([403, 'not_allowlisted']);
+    expect(await code({ signupMode: 'invite', signupInvites: ['t1'] })).toEqual([403, 'invite_required']);
+    expect((await mk({ loggedIn: false, signupMode: 'allowlist', signupAllowlist: ['A@example.com'] }).post('signup', cred)).status).toBe(201);
+    expect((await mk({ loggedIn: false, signupMode: 'invite', signupInvites: ['t1'] }).post('signup', { ...cred, invite_token: 't1' })).status).toBe(201);
+  });
+});

@@ -14,7 +14,7 @@ pnpm add @frappe-saaskit/react @frappe-saaskit/client @tanstack/react-query reac
 import { createClient } from '@frappe-saaskit/client';
 import { SaasProvider, usePlans } from '@frappe-saaskit/react';
 
-const client = createClient({ baseUrl: '/api/v1' });
+const client = createClient({ baseUrl: '' /* same-origin; otherwise the site origin, e.g. 'https://app.example.com' */ });
 
 export const App = () => (
   <SaasProvider client={client}>{/* optional: queryClient={myQueryClient} */}

@@ -25,7 +25,13 @@ export function newKey(): string {
 }
 
 export function mapError(status: number, body: unknown, headers: Headers): SaasError {
-  const eb = ((body && typeof body === 'object' ? (body as { error?: unknown }).error : undefined) ?? {}) as { code?: string; message?: string; field_errors?: Record<string, string>; request_id?: string; retry_after?: number };
+  // Frappe wraps whitelisted-method responses as {message: <payload>}; unwrap before reading `error`.
+  let root: unknown = body;
+  if (root && typeof root === 'object' && !('error' in root) && 'message' in root) {
+    const m = (root as { message?: unknown }).message;
+    if (m && typeof m === 'object') root = m;
+  }
+  const eb = ((root && typeof root === 'object' ? (root as { error?: unknown }).error : undefined) ?? {}) as { code?: string; message?: string; field_errors?: Record<string, string>; request_id?: string; retry_after?: number };
   const args = [eb.message ?? `HTTP ${status}`, status, eb.code, eb.field_errors, eb.request_id] as const;
   if (status === 401) return new AuthError(...args);
   if (status === 403) return new ForbiddenError(...args);

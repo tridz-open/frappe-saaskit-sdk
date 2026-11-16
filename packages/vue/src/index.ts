@@ -1,7 +1,7 @@
 import { getCurrentScope, inject, onScopeDispose, provide, ref, shallowRef, toValue, watch } from 'vue';
 import type { InjectionKey, MaybeRefOrGetter, Ref } from 'vue';
 import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from '@frappe-saaskit/client';
-import type { SaasClient, Job, Tenant, TenantCreateRequest, CheckoutRequest, CreateTicketInput, SignupRequest, LoginRequest, BackupPart, ListParams, TenantStatus, ProfileUpdate, CreateTokenInput, TeamRole } from '@frappe-saaskit/client';
+import type { AdminTenantCreateRequest, AdminTenantInviteRequest, SaasClient, Job, Tenant, TenantCreateRequest, CheckoutRequest, CreateTicketInput, SignupRequest, LoginRequest, BackupPart, ListParams, TenantStatus, ProfileUpdate, CreateTokenInput, TeamRole } from '@frappe-saaskit/client';
 
 export const SAAS_CLIENT_KEY: InjectionKey<SaasClient> = Symbol('saaskit-client');
 export function provideSaas(client: SaasClient): SaasClient { provide(SAAS_CLIENT_KEY, client); return client; }
@@ -51,6 +51,10 @@ const idq = <T>(id: Id, f: (v: string) => Promise<T>) => query(() => f(toValue(i
 
 export const usePlans = (p?: { currency?: string; interval?: 'month' | 'year' }) => { const c = useSaasClient(); return query(() => c.plans.list(p as never)); };
 export const useTemplates = (p?: ListParams) => { const c = useSaasClient(); return query(() => c.templates.list(p)); };
+export const usePublicConfig = () => { const c = useSaasClient(); return query(() => c.config.get()); };
+export const useAdminTenants = (p?: ListParams & { status?: TenantStatus; owner_email?: string }) => { const c = useSaasClient(); return query(() => c.admin.tenants.list(p)); };
+export const useAdminCreateTenant = () => { const c = useSaasClient(); return mutation((i: AdminTenantCreateRequest) => c.admin.tenants.create(i)); };
+export const useAdminInviteTenant = () => { const c = useSaasClient(); return mutation((i: AdminTenantInviteRequest) => c.admin.tenants.invite(i)); };
 export const useMe = () => { const c = useSaasClient(); return query(() => c.me.get()); };
 export const useSignup = () => { const c = useSaasClient(); return mutation((i: SignupRequest) => c.auth.signup(i)); };
 export const useLogin = () => { const c = useSaasClient(); return mutation((i: LoginRequest) => c.auth.login(i)); };

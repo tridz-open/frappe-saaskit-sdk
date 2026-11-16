@@ -1,5 +1,7 @@
 export const saasKeys = {
   all: ['saas'] as const,
+  config: () => ['saas', 'config'] as const,
+  adminTenants: () => ['saas', 'admin', 'tenants'] as const,
   plans: () => ['saas', 'plans'] as const,
   templates: () => ['saas', 'templates'] as const,
   apiTokens: () => ['saas', 'api-tokens'] as const,

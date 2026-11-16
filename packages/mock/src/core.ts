@@ -13,6 +13,18 @@ export interface MockOptions {
   forceUnauthenticated?: boolean;
   /** Start with a logged-in session. Default true. */
   loggedIn?: boolean;
+  /** PublicConfig.public_signup; when false signup returns 403 signup_disabled. Default true. */
+  publicSignup?: boolean;
+  /** Mock signup gate: 'open' (default, honours publicSignup), 'disabled' -> 403 signup_disabled, 'allowlist' -> 403 not_allowlisted unless email in signupAllowlist, 'invite' -> 403 invite_required unless body.invite_token is in signupInvites. */
+  signupMode?: 'open' | 'disabled' | 'allowlist' | 'invite';
+  signupAllowlist?: string[];
+  signupInvites?: string[];
+  /** PublicConfig.payment_banner. Default: mock test-mode notice. */
+  paymentBanner?: string | null;
+  /** Whether the mock user holds the SaaS Admin role (admin.* endpoints 403 otherwise). Default true. */
+  admin?: boolean;
+  /** When true, tenant creation (incl. admin.tenants.create) returns 503 capacity_exhausted. */
+  capacityExhausted?: boolean;
 }
 
 export interface MockStore {
@@ -32,6 +44,9 @@ export interface MockStore {
   team: Map<string, TeamMember[]>;
   invites: Map<string, string>;
   approvals: string[];
+  config: { public_signup: boolean; payment_banner: string | null };
+  isAdmin: boolean;
+  capacityExhausted: boolean;
 }
 
 export interface MockApi {
@@ -77,7 +92,7 @@ const PDF = (n: string) => new TextEncoder().encode(
   `4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 10 50 Td (${n.replace(/[()\\]/g, '')}) Tj ET\nendstream endobj\n` +
   `5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n`);
 
-function seed(loggedIn: boolean): { store: MockStore; counters: { job: number; ticket: number; inv: number; backup: number; token: number; member: number; approval: number } } {
+function seed(loggedIn: boolean, opts: MockOptions = {}): { store: MockStore; counters: { job: number; ticket: number; inv: number; backup: number; token: number; member: number; approval: number } } {
   const now = Date.now();
   const plans: Plan[] = [
     { code: 'free', title: 'Free', description: 'Try it out', prices: [{ interval: 'month', amount: 0, currency: 'USD' }, { interval: 'year', amount: 0, currency: 'USD' }],
@@ -115,11 +130,11 @@ function seed(loggedIn: boolean): { store: MockStore; counters: { job: number; t
   const inv = (n: number, tenant: string, status: Invoice['status'], amount: number, ago: number): Invoice => ({
     name: `INV-2026-${String(n).padStart(4, '0')}`, tenant, number: `2026-${String(n).padStart(4, '0')}`, status, total: { amount, currency: 'USD' },
     issued_at: iso(now - ago * DAY), paid_at: status === 'paid' ? iso(now - ago * DAY + 3600_000) : null,
-    period_start: iso(now - (ago + 30) * DAY), period_end: iso(now - ago * DAY), has_pdf: status !== 'draft' });
+    period_start: iso(now - (ago + 30) * DAY), period_end: iso(now - ago * DAY), has_pdf: status !== 'draft', payment_mocked: true });
   const invoices = [inv(3, 'acme', 'paid', 2900, 1), inv(2, 'acme', 'paid', 2900, 31), inv(1, 'acme', 'paid', 2900, 61), inv(4, 'legacy-co', 'open', 9900, 5)];
   const subscriptions = new Map<string, Subscription>([
-    ['acme', { tenant: 'acme', plan: 'pro', status: 'active', gateway: 'stripe', interval: 'month', period_end: iso(now + 29 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: null }],
-    ['legacy-co', { tenant: 'legacy-co', plan: 'business', status: 'past_due', gateway: 'stripe', interval: 'month', period_end: iso(now - 5 * DAY), cancel_at_period_end: false, dunning_stage: 2, trial_end: null }],
+    ['acme', { tenant: 'acme', plan: 'pro', status: 'active', gateway: 'stripe', payment_mocked: true, interval: 'month', period_end: iso(now + 29 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: null }],
+    ['legacy-co', { tenant: 'legacy-co', plan: 'business', status: 'past_due', gateway: 'stripe', payment_mocked: true, interval: 'month', period_end: iso(now - 5 * DAY), cancel_at_period_end: false, dunning_stage: 2, trial_end: null }],
   ]);
   const tickets: SupportTicket[] = [
     { name: 'TKT-0001', tenant: 'acme', subject: 'How do I add a custom domain?', status: 'resolved', priority: 'normal', created_at: iso(now - 10 * DAY),
@@ -134,19 +149,23 @@ function seed(loggedIn: boolean): { store: MockStore; counters: { job: number; t
   const ownerOf = (n: number): TeamMember => ({ name: `TM-${String(n).padStart(4, '0')}`, email: demo.email, full_name: demo.full_name, role: 'owner', status: 'active', invited_at: null });
   const team = new Map<string, TeamMember[]>([['acme', [ownerOf(1)]], ['legacy-co', [ownerOf(2)]]]);
   return { store: { loggedIn, user: demo, users: new Map([[demo.email, demo]]), plans, templates, tenants, jobs, backups, invoices, subscriptions, tickets, events: [],
-      tokens, team, invites: new Map(), approvals: [] },
+      tokens, team, invites: new Map(), approvals: [],
+      config: { public_signup: opts.publicSignup ?? true, payment_banner: opts.paymentBanner === undefined ? 'Test mode: payments are mocked, no real charges.' : opts.paymentBanner },
+      isAdmin: opts.admin ?? true, capacityExhausted: opts.capacityExhausted ?? false },
     counters: { job: 2, ticket: 2, inv: 4, backup: 2, token: 2, member: 2, approval: 0 } };
 }
 
 export function createMockApi(opts: MockOptions = {}): MockApi {
   const options = { baseUrl: opts.baseUrl ?? '', stepMs: opts.stepMs ?? 800, pingMs: opts.pingMs ?? 15000, forceUnauthenticated: opts.forceUnauthenticated ?? false };
-  let { store, counters } = seed(opts.loggedIn ?? true);
+  let { store, counters } = seed(opts.loggedIn ?? true, opts);
   let seq = 0;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const closers = new Set<() => void>();
   const subs = new Set<(e: SaasEvent) => void>();
   const idem = new Map<string, { body: string; status: number; payload?: string }>();
   const phases = new Map<string, number>();
+  const sessions = new Map<string, string>();
+  const verified = new Map<string, string | undefined>();
   const api = { options, get store() { return store; } } as unknown as MockApi;
 
   const later = (fn: () => void, ms: number) => {
@@ -231,6 +250,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     if (!SLUG_RE.test(slug)) invalid(field, 'Must be 4-32 chars: lowercase letters, digits, hyphens; start with a letter');
     if (store.tenants.has(slug)) fail(409, 'conflict', 'Slug already taken', { [field]: 'Slug already taken' });
   };
+  const requireAdmin = () => { if (!store.isAdmin) fail(403, 'forbidden', 'SaaS Admin role required'); };
   const planOf = (code: string, field = 'plan'): Plan => store.plans.find((x) => x.code === code) ?? invalid(field, 'Unknown plan');
   const idle = (t: Tenant) => { if (t.active_job) fail(409, 'conflict', 'Another operation is already in progress for this tenant'); };
   const me = (): Me => ({ user: store.user.email, email: store.user.email, full_name: store.user.full_name, roles: ['SaaS Customer'], tenant_count: store.tenants.size, csrf_token: 'mock-csrf-token' });
@@ -239,7 +259,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     name: slug, slug, status: 'pending', plan, template: template ?? null, region: region ?? 'eu-west', url: null, custom_domain: null, created_at: iso(), active_job: null, suspend_reason: null });
   function subscribeTenant(t: Tenant, plan: Plan, interval: 'month' | 'year' = 'month') {
     const trial = plan.trial_days ?? 0;
-    store.subscriptions.set(t.name, { tenant: t.name, plan: plan.code, status: trial ? 'trialing' : 'active', gateway: 'stripe', interval,
+    store.subscriptions.set(t.name, { tenant: t.name, plan: plan.code, status: trial ? 'trialing' : 'active', gateway: 'stripe', payment_mocked: true, interval,
       period_end: iso(Date.now() + 30 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: trial ? iso(Date.now() + trial * DAY) : null });
     store.backups.set(t.name, store.backups.get(t.name) ?? []);
   }
@@ -268,8 +288,13 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
       return ok({ items: list, next_cursor: null });
     } },
     'templates.list': { m: 'GET', auth: false, run: (p) => paginate(store.templates, p) },
+    config: { m: 'GET', auth: false, run: () => ok({ ...store.config }) },
     signup: { m: 'POST', auth: false, run: (p) => {
+      const mode = opts.signupMode ?? 'open';
+      if (mode === 'disabled' || !store.config.public_signup) fail(403, 'signup_disabled', 'Public signup is disabled');
       const email = str(p, 'email').toLowerCase(), password = str(p, 'password');
+      if (mode === 'allowlist' && !(opts.signupAllowlist ?? []).map((e) => e.toLowerCase()).includes(email)) fail(403, 'not_allowlisted', 'This email is not on the signup allowlist');
+      if (mode === 'invite' && !(typeof p.invite_token === 'string' && (opts.signupInvites ?? []).includes(p.invite_token))) fail(403, 'invite_required', 'A valid invite is required to sign up');
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) invalid('email', 'Invalid email');
       if (password.length < 10) invalid('password', 'Must be at least 10 characters');
       if (p.plan !== undefined) planOf(str(p, 'plan'));
@@ -399,14 +424,61 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
         provision(tenant, 'provision');
       }
       const id = `cs_mock_${Math.random().toString(36).slice(2, 10)}`;
-      return ok({ gateway, session_id: id, url: `https://checkout.mock.test/pay/${id}`, tenant: tenant.name, public_key: `pk_test_mock_${gateway}`, expires_at: iso(Date.now() + 30 * 60_000) }, 201);
+      sessions.set(id, tenant.name);
+      return ok({ gateway, session_id: id, url: `https://checkout.mock.test/pay/${id}`, client_payload: { provider: 'manual' }, payment_mocked: true, tenant: tenant.name, public_key: `pk_test_mock_${gateway}`, expires_at: iso(Date.now() + 30 * 60_000) }, 201);
+    } },
+    'checkout.verify_payment': { m: 'POST', auth: true, run: (p) => {
+      const gateway = str(p, 'gateway');
+      const pl = (p.payload && typeof p.payload === 'object' ? p.payload : {}) as Record<string, unknown>;
+      const sid = typeof pl.session_id === 'string' ? pl.session_id : undefined;
+      const key = `${gateway}:${sid ?? JSON.stringify(pl)}`;
+      const tenant = (sid && sessions.get(sid)) || (typeof pl.tenant === 'string' ? pl.tenant : undefined);
+      if (verified.has(key)) return ok({ status: 'duplicate', tenant: verified.get(key) });
+      verified.set(key, tenant);
+      return ok({ status: 'ok', tenant });
     } },
     'tenants.list': { m: 'GET', auth: true, run: (p) => {
       if (p.status !== undefined && !['pending', 'provisioning', 'active', 'suspended', 'terminating', 'failed'].includes(String(p.status))) invalid('status', 'Unknown status');
       return paginate([...store.tenants.values()].filter((t) => !p.status || t.status === p.status), p);
     } },
     'tenants.get': { m: 'GET', auth: true, run: (p) => ok(tenantOf(p)) },
+    'admin.tenants.list': { m: 'GET', auth: true, run: (p) => {
+      requireAdmin();
+      if (p.status !== undefined && !['pending', 'provisioning', 'active', 'suspended', 'terminating', 'failed'].includes(String(p.status))) invalid('status', 'Unknown status');
+      const owner = p.owner_email ? String(p.owner_email).toLowerCase() : '';
+      return paginate([...store.tenants.values()].filter((t) => (!p.status || t.status === p.status) && (!owner || (store.team.get(t.name) ?? []).some((m) => m.role === 'owner' && m.email === owner))), p);
+    } },
+    'admin.tenants.create': { m: 'POST', auth: true, run: (p) => {
+      requireAdmin();
+      const email = str(p, 'owner_email').toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) invalid('owner_email', 'Invalid email');
+      const plan = planOf(str(p, 'plan'));
+      const name = str(p, 'name', false);
+      const slug = str(p, 'subdomain', false) || (name || email.split('@')[0]!).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/^[^a-z]+/, '');
+      checkSlug(slug, 'subdomain');
+      const template = templateOf(str(p, 'template', false) || undefined, plan.code);
+      if (store.capacityExhausted) fail(503, 'capacity_exhausted', 'No server has capacity right now');
+      const t = newTenant(slug, plan.code, template);
+      subscribeTenant(t, plan);
+      store.team.set(t.name, [{ name: `TM-${String(++counters.member).padStart(4, '0')}`, email, full_name: null, role: 'owner', status: 'invited', invited_at: iso() }]);
+      const job = provision(t, 'provision');
+      return ok({ tenant: JSON.parse(JSON.stringify(t)), job, checkout_required: false }, 202);
+    } },
+    'admin.tenants.invite': { m: 'POST', auth: true, run: (p) => {
+      requireAdmin();
+      const t = tenantOf(p);
+      const email = str(p, 'owner_email').toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) invalid('owner_email', 'Invalid email');
+      const list = store.team.get(t.name) ?? [];
+      if (list.some((x) => x.email === email)) fail(409, 'conflict', 'Already a member or invited', { owner_email: 'Already a member or invited' });
+      const m: TeamMember = { name: `TM-${String(++counters.member).padStart(4, '0')}`, email, full_name: null, role: 'owner', status: 'invited', invited_at: iso() };
+      list.push(m);
+      store.team.set(t.name, list);
+      store.invites.set(`invite-${m.name}`, t.name);
+      return ok(m, 201);
+    } },
     'tenants.create': { m: 'POST', auth: true, run: (p) => {
+      if (store.capacityExhausted) fail(503, 'capacity_exhausted', 'No server has capacity right now');
       const slug = str(p, 'slug');
       const plan = planOf(str(p, 'plan'));
       checkSlug(slug);
@@ -618,7 +690,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     timers.forEach(clearTimeout); timers.clear();
     [...closers].forEach((c) => c());
     subs.clear(); idem.clear(); phases.clear(); seq = 0;
-    ({ store, counters } = seed(opts.loggedIn ?? true));
+    ({ store, counters } = seed(opts.loggedIn ?? true, opts));
   };
   return api;
 }
