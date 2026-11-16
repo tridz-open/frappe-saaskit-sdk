@@ -51,7 +51,7 @@
 <text x="175" y="359.2" font-size="12" fill="#166534" text-anchor="middle">@frappe-saaskit/react</text>
 <text x="175" y="377.2" font-size="12" fill="#166534" text-anchor="middle">SaasProvider, hooks,</text>
 <text x="175" y="395.2" font-size="12" fill="#166534" text-anchor="middle">useRazorpayCheckout</text>
-<text x="175" y="413.2" font-size="12" fill="#166534" text-anchor="middle">peer deps: react, @tanstack/react-query</text>
+<text x="175" y="413.2" font-size="12" fill="#166534" text-anchor="middle">peers: react, @tanstack/react-query</text>
 <!-- vue: x=340, y=337, w=270, h=90, right=610, bottom=427 -->
 <rect x="340" y="337" width="270" height="90" rx="6" fill="#d1fae5" stroke="#22c55e"/>
 <text x="475" y="368.2" font-size="12" fill="#166534" text-anchor="middle">@frappe-saaskit/vue</text>
