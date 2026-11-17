@@ -1,6 +1,6 @@
 {
   "name": "@frappe-saaskit/vue",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Vue 3 composables for @frappe-saaskit/client",
   "license": "MIT",
   "author": "Tridz Technologies",

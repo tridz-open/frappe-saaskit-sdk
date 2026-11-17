@@ -31,7 +31,7 @@ writeFileSync(
   resolve(root, "spec/SOURCE.md"),
   `# Vendored OpenAPI contract
 
-- Source repo: https://github.com/tridz-dev/saas_core
+- Source: the saas_core backend (not public yet; the mock package is the way to try the SDK today)
 - Path: \`openapi/v1.yaml\`
 - Commit: ${commit}
 - \`info.version\`: ${version}

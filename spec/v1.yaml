@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: saas_core API
-  version: 1.4.0
+  version: 1.4.1
   license:
     name: MIT
   description: 'Generic SaaS control-plane API. Success responses are wrapped by Frappe as `{"message": <payload>}`; errors use the `Error` schema
@@ -708,10 +708,14 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      description: 'Provisioning starts only when an active/trialing Subscription is linked to this tenant (created via checkout) or the caller
+        is a SaaS Admin/System Manager. Otherwise the tenant stays pending and the response carries `checkout_required: true`; complete `checkout.create_session`
+        for the tenant. Non-public/unavailable plans and non-public templates (or templates whose `min_plan` exceeds the plan) are rejected with
+        422 for customers.'
   /api/method/saas_core.api.v1.tenants.duplicate:
     post:
       operationId: tenantsDuplicate
-      summary: Duplicate a tenant from its latest backup
+      summary: Duplicate a tenant from its latest backup (SaaS Admin / System Manager only)
       tags:
       - tenants
       parameters:
@@ -755,6 +759,7 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      description: 'Operator-only: customers receive 403 `forbidden` because a copy provisions a paid site and has no checkout hook.'
   /api/method/saas_core.api.v1.tenants.request_delete:
     post:
       operationId: tenantsRequestDelete
@@ -841,9 +846,9 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
-      description: 'Called by the ury_setup app on the tenant site, not by customers. The raw JSON body is signed with the per-tenant secret:
-        header `X-Ury-Signature: sha256=<hex HMAC-SHA256>`. Any failure (unknown site, bad MAC, stale `completed_at`) is `401 invalid_signature`.
-        Idempotent.'
+      description: 'Called by the tenant-side setup app on the tenant site, not by customers. The raw JSON body is signed with the per-tenant
+        secret: header `X-Saas-Signature: sha256=<hex HMAC-SHA256>`. A legacy header name is still accepted (deprecated alias); when both are
+        sent, `X-Saas-Signature` wins. Any failure (unknown site, bad MAC, stale `completed_at`) is `401 invalid_signature`. Idempotent.'
   /api/method/saas_core.api.v1.tenants.suspend_status:
     get:
       operationId: tenantsSuspendStatus
@@ -3112,7 +3117,7 @@ components:
           type:
           - string
           - 'null'
-          description: customer-safe message, no FC internals
+          description: customer-safe message, no provider internals
         created_at:
           type: string
           format: date-time

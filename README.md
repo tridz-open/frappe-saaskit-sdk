@@ -1,8 +1,8 @@
 # frappe-saaskit-sdk (`@frappe-saaskit/*`)
 
-TypeScript SDK for building SaaS front ends (signup, workspaces/tenants, billing, backups, support) on top of the **saas_core** Frappe app. The client's types are generated from saas_core's OpenAPI contract (currently **v1.4.0**), and every call goes to `<site>/api/method/saas_core.api.v1.<operation>`.
+TypeScript SDK for building SaaS front ends (signup, workspaces/tenants, billing, backups, support) on top of the **saas_core** Frappe app. The client's types are generated from saas_core's OpenAPI contract (currently **v1.4.1**), and every call goes to `<site>/api/method/saas_core.api.v1.<operation>`.
 
-> **Status: alpha (0.1.0-alpha.0).** The API can change without notice. Packages are distributed as GitHub release tarballs for now (npm follows once the `@frappe-saaskit` scope is registered). You can use it against a site running [saas_core](https://github.com/tridz-dev/saas_core), or against the bundled in-memory mock. See [Known gaps](#known-gaps-and-limitations) before relying on it.
+> **Status: alpha (0.1.0-alpha.1).** The API can change without notice. Packages are distributed as GitHub release tarballs for now (npm follows once the `@frappe-saaskit` scope is registered). The saas_core backend is not public yet, so the bundled in-memory mock (`@frappe-saaskit/mock`) is the way to try the SDK today; against a real site it needs one running saas_core. See [Known gaps](#known-gaps-and-limitations) before relying on it.
 
 See also: [Note to the Frappe team](#note-to-the-frappe-team).
 
@@ -31,7 +31,7 @@ All packages are ESM-only.
 The packages are attached as `.tgz` files to GitHub releases of this repo. Add them with URLs and pin the inner client with an override (the other packages depend on `@frappe-saaskit/client`, which is not on the npm registry yet):
 
 ```bash
-V=0.1.0-alpha.0; R=https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v$V
+V=0.1.0-alpha.1; R=https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v$V
 pnpm add $R/frappe-saaskit-client-$V.tgz $R/frappe-saaskit-react-$V.tgz @tanstack/react-query react react-dom
 pnpm add -D $R/frappe-saaskit-mock-$V.tgz
 ```
@@ -42,25 +42,25 @@ Then add this to your `package.json` (npm users: top-level `"overrides"` instead
 {
   "pnpm": {
     "overrides": {
-      "@frappe-saaskit/client": "https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v0.1.0-alpha.0/frappe-saaskit-client-0.1.0-alpha.0.tgz"
+      "@frappe-saaskit/client": "https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v0.1.0-alpha.1/frappe-saaskit-client-0.1.0-alpha.1.tgz"
     }
   }
 }
 ```
 
-If the repository or its releases are private, download the `.tgz` files into your project (for example `vendor/saaskit/`) and use `file:` specs, with the same override:
+If you cannot reach the release URLs (offline, mirrored or air-gapped setups), download the `.tgz` files into your project (for example `vendor/saaskit/`) and use `file:` specs, with the same override:
 
 ```json
 {
   "dependencies": {
-    "@frappe-saaskit/client": "file:./vendor/saaskit/frappe-saaskit-client-0.1.0-alpha.0.tgz",
-    "@frappe-saaskit/react": "file:./vendor/saaskit/frappe-saaskit-react-0.1.0-alpha.0.tgz"
+    "@frappe-saaskit/client": "file:./vendor/saaskit/frappe-saaskit-client-0.1.0-alpha.1.tgz",
+    "@frappe-saaskit/react": "file:./vendor/saaskit/frappe-saaskit-react-0.1.0-alpha.1.tgz"
   },
-  "pnpm": { "overrides": { "@frappe-saaskit/client": "file:./vendor/saaskit/frappe-saaskit-client-0.1.0-alpha.0.tgz" } }
+  "pnpm": { "overrides": { "@frappe-saaskit/client": "file:./vendor/saaskit/frappe-saaskit-client-0.1.0-alpha.1.tgz" } }
 }
 ```
 
-Release assets: `frappe-saaskit-{client,react,vue,node,mock}-<version>.tgz` and `SHA256SUMS`. Bump the version in every URL (and the override) together; versions are lock-stepped. Once the packages are on npm, delete the override and depend on `"@frappe-saaskit/client": "^0.1.0-alpha.0"`.
+Release assets: `frappe-saaskit-{client,react,vue,node,mock}-<version>.tgz` and `SHA256SUMS`. Bump the version in every URL (and the override) together; versions are lock-stepped. Once the packages are on npm, delete the override and depend on `"@frappe-saaskit/client": "^0.1.0-alpha.1"`.
 
 ## Build from source
 
@@ -226,15 +226,14 @@ This is an **alpha**. Breaking changes will come without a deprecation period. T
 
 1. **Personal access tokens / Bearer.** saas_core issues API tokens (`apiTokens.create`) but no request hook validates `Authorization: Bearer`. The SDK marks `bearer` unsupported until that ships.
 2. **Idempotency on `admin.tenants.create` and `auth.login`.** saas_core does not deduplicate them, so the SDK never retries them. Once the handlers accept `Idempotency-Key`, they join the retry allowlist.
-3. **Product-specific names in the spec.** The generated types carry a product-specific signature header and setup-callback operation name taken from the contract (search `schema.d.ts` for the setup callback); they should be renamed to generic names upstream.
-4. **Error envelope.** Some Frappe-native exceptions still return `exc_type`/`_server_messages` instead of the v1 `error` schema. The SDK maps both for now.
-5. **CSRF for guests.** The SDK's CSRF bootstrap relies on `auth.me` returning a `csrf_token` for guest sessions, which still needs confirming. If `me` fails, the SDK proceeds without a token.
-6. **No public contract target.** The opt-in contract test (`SAASCORE_URL=... pnpm test:contract`) needs a reachable saas_core site; there is no public demo yet.
-7. **saas_core visibility.** Links to `tridz-dev/saas_core` assume it becomes public with a license.
+3. **Error envelope.** Some Frappe-native exceptions still return `exc_type`/`_server_messages` instead of the v1 `error` schema. The SDK maps both for now.
+4. **CSRF for guests.** The SDK's CSRF bootstrap relies on `auth.me` returning a `csrf_token` for guest sessions, which still needs confirming. If `me` fails, the SDK proceeds without a token.
+5. **No public contract target.** The opt-in contract test (`SAASCORE_URL=... pnpm test:contract`) needs a reachable saas_core site; there is no public demo yet.
+6. **saas_core visibility.** The saas_core backend is not public yet; the vendored spec comes from it, and the mock package is the way to try the SDK without it.
 
 SDK-side limits:
 
-- **Backend coupling.** It only works against saas_core's v1 API; generated types track contract **1.4.0**.
+- **Backend coupling.** It only works against saas_core's v1 API; generated types track contract **1.4.1**.
 - **ESM only**, no CommonJS build.
 - **The mock is a simulation**, not a contract test. Code that passes against the mock can still fail against a real site.
 
@@ -254,7 +253,7 @@ The SDK talks only to the saas_core API. Frappe Cloud credentials or hosts must 
 
 ## Related
 
-- [tridz-dev/saas_core](https://github.com/tridz-dev/saas_core): the backend Frappe app and the OpenAPI contract
+- saas_core: the backend Frappe app and source of the OpenAPI contract (not public yet; the contract is vendored in `spec/v1.yaml`, and `@frappe-saaskit/mock` stands in for it)
 - [tridz-dev/frappe-saaskit-starter](https://github.com/tridz-dev/frappe-saaskit-starter): a starter app built on this SDK
 
 ## License

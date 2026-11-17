@@ -1,5 +1,13 @@
 # @frappe-saaskit/mock
 
+## 0.1.0-alpha.1
+
+### Patch Changes
+
+- Sync vendored OpenAPI contract to saas_core 1.4.1: product-specific wording removed and the setup callback signature header is now `X-Saas-Signature`. Regenerated client types.
+- Updated dependencies
+  - @frappe-saaskit/client@0.1.0-alpha.1
+
 ## 0.1.0-alpha.0
 
 ### Minor Changes
