@@ -6,19 +6,19 @@ Facts here come from the source: `packages/*/src/index.ts`, `packages/client/src
 
 ## 1. Package map
 
-`@frappe-saaskit/client` is the only package that talks HTTP. Its types are generated from the saas_core OpenAPI contract (`../saas_core/openapi/v1.yaml`) by `scripts/codegen.mjs` into `packages/client/src/generated/schema.d.ts`. `react`, `vue` and `node` are thin layers over the client. `mock` depends on the client types and answers the same URLs from memory.
+`@frappe-saaskit/client` is the only package that talks HTTP. Its types are generated from the saas_core OpenAPI contract (`../saas_core/openapi/v1.yaml` by default, or `OPENAPI_PATH`) by `scripts/codegen.mjs` into `packages/client/src/generated/schema.d.ts`. `react`, `vue` and `node` are thin layers over the client. `mock` depends on the client types and answers the same URLs from memory.
 
 ![saas-kit package map](assets/package-map.svg)
 
 | Package | Runtime deps | Entry points (from `src/index.ts`) |
 |---|---|---|
-| client | `openapi-fetch` | `createClient`, `SaasClient`, `ClientOptions`, `AuthStrategy`, `RetryOptions`, error classes, `TERMINAL_JOB_STATES`, `STABLE_TENANT_STATUSES`, `components`/`paths`/`operations` |
+| client | none used at runtime (`openapi-fetch` is declared but not imported) | `createClient`, `SaasClient`, `ClientOptions`, `AuthStrategy`, `RetryOptions`, error classes, `TERMINAL_JOB_STATES`, `STABLE_TENANT_STATUSES`, `components`/`paths`/`operations` |
 | react | client (workspace), peers `react`, `@tanstack/react-query` | `SaasProvider`, `useSaasClient`, `saasKeys`, all hooks, `useRazorpayCheckout`, `loadRazorpayScript`, `RAZORPAY_SCRIPT_URL` |
 | vue | client (workspace), peer `vue` | `provideSaas`, `useSaasClient`, `SAAS_CLIENT_KEY`, composables (`usePlans`, `useCheckout`, `useJob`, ...) |
 | node | client (workspace) | `createNodeClient`, `tokenFromEnv`, `loadTokenFile` |
 | mock | client (workspace), `msw` | `createMockFetch`, `createMockHandlers`, `createMockServer`, `createMockApi` |
 
-Contract drift is caught by `pnpm codegen:check` (CI); it exits non-zero if `schema.d.ts` no longer matches the spec.
+Contract drift is caught by `pnpm codegen:check`, which exits non-zero if `schema.d.ts` no longer matches the spec. It needs the spec on disk, so it is a no-op (exit 0) when `../saas_core/openapi/v1.yaml` is absent, which is the case in CI today.
 
 ## 2. Request lifecycle: CSRF, auth and the error envelope
 
