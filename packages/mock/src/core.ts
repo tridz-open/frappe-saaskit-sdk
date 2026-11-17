@@ -44,7 +44,7 @@ export interface MockStore {
   team: Map<string, TeamMember[]>;
   invites: Map<string, string>;
   approvals: string[];
-  config: { public_signup: boolean; payment_banner: string | null };
+  config: { public_signup: boolean; payment_banner: string | null; site_domain: string | null };
   isAdmin: boolean;
   capacityExhausted: boolean;
 }
@@ -150,7 +150,7 @@ function seed(loggedIn: boolean, opts: MockOptions = {}): { store: MockStore; co
   const team = new Map<string, TeamMember[]>([['acme', [ownerOf(1)]], ['legacy-co', [ownerOf(2)]]]);
   return { store: { loggedIn, user: demo, users: new Map([[demo.email, demo]]), plans, templates, tenants, jobs, backups, invoices, subscriptions, tickets, events: [],
       tokens, team, invites: new Map(), approvals: [],
-      config: { public_signup: opts.publicSignup ?? true, payment_banner: opts.paymentBanner === undefined ? 'Test mode: payments are mocked, no real charges.' : opts.paymentBanner },
+      config: { public_signup: opts.publicSignup ?? true, payment_banner: opts.paymentBanner === undefined ? 'Test mode: payments are mocked, no real charges.' : opts.paymentBanner, site_domain: 'mock.example.com' },
       isAdmin: opts.admin ?? true, capacityExhausted: opts.capacityExhausted ?? false },
     counters: { job: 2, ticket: 2, inv: 4, backup: 2, token: 2, member: 2, approval: 0 } };
 }
@@ -440,6 +440,19 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     'tenants.list': { m: 'GET', auth: true, run: (p) => {
       if (p.status !== undefined && !['pending', 'provisioning', 'active', 'suspended', 'terminating', 'failed'].includes(String(p.status))) invalid('status', 'Unknown status');
       return paginate([...store.tenants.values()].filter((t) => !p.status || t.status === p.status), p);
+    } },
+    'tenants.slug_availability': { m: 'GET', auth: true, run: (p) => {
+      const slug = String(p.slug ?? '').trim().toLowerCase();
+      const reserved = ['www', 'api', 'app', 'admin', 'mail', 'cp', 'console', 'dashboard', 'support', 'help', 'status', 'blog', 'docs', 'billing', 'login', 'signup', 'auth', 'static', 'assets', 'cdn', 'ftp', 'smtp', 'imap', 'root', 'test', 'demo', 'staging', 'dev'];
+      const why = (s: string) => (!SLUG_RE.test(s) ? 'invalid' : reserved.includes(s) ? 'reserved' : store.tenants.has(s) ? 'taken' : null);
+      const reason = why(slug);
+      const msgs = { invalid: 'Use 4\u201332 lowercase letters, numbers or dashes, starting with a letter.', reserved: 'That address is reserved.', taken: 'That address is taken.' };
+      let suggestion: string | null = null;
+      if (reason) {
+        const base = reason === 'invalid' ? slug.replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').replace(/^(\d)/, 'x$1').slice(0, 32) : slug;
+        for (const cand of [base, ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `${base.slice(0, 30)}-${n}`)]) { if (why(cand) === null) { suggestion = cand; break; } }
+      }
+      return ok({ slug, available: !reason, reason, message: reason ? msgs[reason] : 'Available', suggestion });
     } },
     'tenants.get': { m: 'GET', auth: true, run: (p) => ok(tenantOf(p)) },
     'admin.tenants.list': { m: 'GET', auth: true, run: (p) => {

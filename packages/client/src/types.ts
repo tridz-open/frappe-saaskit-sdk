@@ -32,6 +32,7 @@ export type VerifyPaymentPayload = RazorpayPaymentResponse | Record<string, unkn
 export type VerifyPaymentResult = S['VerifyPaymentResult'];
 export type Tenant = S['Tenant'];
 export type PublicConfig = S['PublicConfig'];
+export type SlugAvailability = S['SlugAvailability'];
 export type AdminTenantCreateRequest = S['AdminTenantCreateRequest'];
 export type AdminTenantInviteRequest = S['AdminTenantInviteRequest'];
 export type TenantCreateRequest = S['TenantCreateRequest'];

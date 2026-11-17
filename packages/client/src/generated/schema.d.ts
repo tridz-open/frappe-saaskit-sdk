@@ -321,6 +321,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/method/saas_core.api.v1.tenants.slug_availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check whether a workspace address (slug) is available */
+        get: operations["tenantsSlugAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/method/saas_core.api.v1.tenants.create": {
         parameters: {
             query?: never;
@@ -366,6 +383,26 @@ export interface paths {
         put?: never;
         /** Request deletion (creates an approval; terminate runs after approval) */
         post: operations["tenantsRequestDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.tenants.setup_complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tenant site callback: setup finished (HMAC-signed, guest)
+         * @description Called by the ury_setup app on the tenant site, not by customers. The raw JSON body is signed with the per-tenant secret: header `X-Ury-Signature: sha256=<hex HMAC-SHA256>`. Any failure (unknown site, bad MAC, stale `completed_at`) is `401 invalid_signature`. Idempotent.
+         */
+        post: operations["tenantsSetupComplete"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1045,6 +1082,18 @@ export interface components {
             public_signup: boolean;
             /** @description Non-empty when payments are mocked/test mode; show as a site-wide banner */
             payment_banner?: string | null;
+            /** @description Base domain for tenant sites (`<slug>.<site_domain>`); null when unset */
+            site_domain?: string | null;
+        };
+        SlugAvailability: {
+            /** @description Normalised (trimmed, lowercase) input */
+            slug: string;
+            available: boolean;
+            /** @enum {string|null} */
+            reason: "invalid" | "reserved" | "taken" | null;
+            message: string;
+            /** @description A free alternative slug, when one could be derived */
+            suggestion: string | null;
         };
         AdminTenantCreateRequest: {
             /** Format: email */
@@ -1192,6 +1241,11 @@ export interface components {
             /** Format: date-time */
             since?: string | null;
             resume_by_paying?: boolean;
+        };
+        SetupComplete: {
+            tenant: string;
+            /** @enum {string} */
+            status: "completed" | "already_completed";
         };
         LoginLink: {
             /** Format: uri */
@@ -2063,6 +2117,34 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    tenantsSlugAvailability: {
+        parameters: {
+            query: {
+                slug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["SlugAvailability"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            default: components["responses"]["Error"];
+        };
+    };
     tenantsCreate: {
         parameters: {
             query?: never;
@@ -2175,6 +2257,39 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            default: components["responses"]["Error"];
+        };
+    };
+    tenantsSetupComplete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    site: string;
+                    /** Format: date-time */
+                    completed_at: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["SetupComplete"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             429: components["responses"]["RateLimited"];
             default: components["responses"]["Error"];
         };
