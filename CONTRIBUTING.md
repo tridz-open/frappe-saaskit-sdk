@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-corepack enable            # provides the pnpm version pinned in package.json (pnpm 11)
+corepack enable            # provides the pnpm version pinned in package.json (pnpm 10; works on Node 20 and 22, pnpm 11 needs Node 22.13+)
 pnpm install
 pnpm build && pnpm typecheck && pnpm test
 ```

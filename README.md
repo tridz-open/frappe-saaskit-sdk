@@ -21,7 +21,7 @@ All packages are ESM-only.
 ## Prerequisites
 
 - **Node.js 20 or newer.** CI runs Node 20 and 22. The client's SSE uses `fetch` streaming, so there is no `EventSource` polyfill to install.
-- **pnpm 9 or newer** to consume the packages; **pnpm 11** to build from source (pinned in `package.json` via `packageManager`, so `corepack enable` picks it up).
+- **pnpm 9 or newer** to consume the packages; **pnpm 10** to build from source (pinned in `package.json` via `packageManager`, so `corepack enable` picks it up).
 - **For real use:** a Frappe site with the saas_core app installed, reachable from your front end. For cookie auth from the browser, serve your front end from the same origin as the site (or set up CORS with credentials on the site yourself).
 - **ESM only.** There is no CommonJS build.
 - **For refreshing the contract only:** a checkout of saas_core. The OpenAPI spec is vendored in `spec/v1.yaml`, so building, testing and codegen need no sibling repo.
