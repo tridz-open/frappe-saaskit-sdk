@@ -1,0 +1,14 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@frappe-saaskit/client": "0.0.1",
+    "@frappe-saaskit/mock": "0.0.1",
+    "@frappe-saaskit/node": "0.0.1",
+    "@frappe-saaskit/react": "0.0.1",
+    "@frappe-saaskit/vue": "0.0.1"
+  },
+  "changesets": [
+    "initial-alpha"
+  ]
+}
