@@ -8,11 +8,16 @@ vi.mock('@frappe-saaskit/client', () => ({ createClient: (o: unknown) => createC
 import { createNodeClient, tokenFromEnv, loadTokenFile } from './index';
 
 describe('node helpers', () => {
-  it('createNodeClient wires bearer auth', async () => {
-    const c = createNodeClient({ baseUrl: 'http://x', token: 'abc' }) as any;
-    expect(c.opts.baseUrl).toBe('http://x'); expect(c.opts.auth.type).toBe('bearer');
-    expect(await c.opts.auth.getToken()).toBe('abc');
+  it('createNodeClient wires apiKey (token key:secret) auth by default', () => {
+    const c = createNodeClient({ baseUrl: 'http://x', token: 'k:s' }) as any;
+    expect(c.opts.baseUrl).toBe('http://x'); expect(c.opts.auth).toEqual({ type: 'apiKey', key: 'k:s' });
     expect(() => createNodeClient({ baseUrl: 'x', token: '' })).toThrow();
+    expect(() => createNodeClient({ baseUrl: 'x', token: () => 'k:s' })).toThrow(/bearer/);
+  });
+  it('scheme bearer is still available (deprecated)', async () => {
+    const c = createNodeClient({ baseUrl: 'http://x', token: 'abc', scheme: 'bearer' }) as any;
+    expect(c.opts.auth.type).toBe('bearer');
+    expect(await c.opts.auth.getToken()).toBe('abc');
   });
   it('tokenFromEnv', () => {
     expect(tokenFromEnv('A', { A: ' tok \n' })).toBe('tok');

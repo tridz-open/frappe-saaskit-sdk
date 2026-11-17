@@ -18,7 +18,7 @@ fetch.reset();                                  // restore the seed data
 With MSW:
 
 ```ts
-import { createMockServer } from '@frappe-saaskit/mock';          // Node (msw/node)
+import { createMockServer } from '@frappe-saaskit/mock/node';     // Node (msw/node); the package root is browser-safe
 const server = createMockServer(); server.listen();
 
 import { createMockWorker } from '@frappe-saaskit/mock/browser';  // browser (msw/browser)
