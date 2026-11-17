@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act, cleanup } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { SaasProvider, useRazorpayCheckout } from './index';
+import { SaasProvider, useRazorpayCheckout, PaymentDismissedError } from './index';
 
 afterEach(() => { cleanup(); delete (window as any).Razorpay; });
 
@@ -47,14 +47,30 @@ describe('useRazorpayCheckout', () => {
     expect(result.current.error?.message).toBe('dismissed');
   });
 
-  it('rejects with payment.failed description; order mode uses order_id/amount', async () => {
+  it('payment.failed does not reject: a later success resolves, onPaymentFailed fires', async () => {
     const { wrapper, inst } = setup();
-    const { result } = renderHook(() => useRazorpayCheckout(), { wrapper });
+    const onPaymentFailed = vi.fn();
+    const { result } = renderHook(() => useRazorpayCheckout({ onPaymentFailed }), { wrapper });
     const order = { ...session, client_payload: { provider: 'razorpay', key: 'k', mode: 'order', order_id: 'o1', amount: 500, currency: 'INR' } };
     let p!: Promise<any>;
-    await act(async () => { p = result.current.open(order); p.catch(() => {}); await Promise.resolve(); });
+    await act(async () => { p = result.current.open(order); await Promise.resolve(); });
     expect(inst.opts).toMatchObject({ order_id: 'o1', amount: 500, currency: 'INR' });
     await act(async () => { inst.handlers['payment.failed']({ error: { description: 'Card declined' } }); });
-    await expect(p).rejects.toThrow('Card declined');
+    expect(onPaymentFailed).toHaveBeenCalledWith(expect.objectContaining({ message: 'Card declined' }));
+    expect(result.current.lastFailure?.message).toBe('Card declined');
+    await act(async () => { inst.opts.handler({ razorpay_payment_id: 'pay', razorpay_order_id: 'o1', razorpay_signature: 's' }); });
+    await expect(p).resolves.toEqual({ status: 'ok', tenant: 't1' });
+  });
+
+  it('failed then dismissed rejects with PaymentDismissedError carrying lastFailure', async () => {
+    const { wrapper, inst } = setup();
+    const { result } = renderHook(() => useRazorpayCheckout(), { wrapper });
+    let p!: Promise<any>;
+    await act(async () => { p = result.current.open(session); p.catch(() => {}); await Promise.resolve(); });
+    await act(async () => { inst.handlers['payment.failed']({ error: { description: 'Card declined' } }); });
+    await act(async () => { inst.opts.modal.ondismiss(); });
+    const e = await p.catch((x) => x);
+    expect(e).toBeInstanceOf(PaymentDismissedError);
+    expect(e.lastFailure.message).toBe('Card declined');
   });
 });
