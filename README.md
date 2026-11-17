@@ -97,7 +97,7 @@ const client = createClient({ baseUrl: 'http://localhost', auth: { type: 'cookie
 
 ## Architecture
 
-Package map, request lifecycle (CSRF, auth, error envelope), the Razorpay checkout sequence and mock-vs-real wiring, with Mermaid diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Package map, request lifecycle (CSRF, auth, error envelope), the Razorpay checkout sequence and mock-vs-real wiring, as SVG diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Develop
 
