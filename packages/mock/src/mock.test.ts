@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Job, type SaasEvent } from '@frappe-saaskit/client';
-import { createMockFetch, createMockServer } from './index.js';
+import { createMockFetch } from './index.js';
+import { createMockServer } from './node.js';
 
 const P = '/api/method/saas_core.api.v1.';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
