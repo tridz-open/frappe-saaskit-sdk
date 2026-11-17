@@ -6,7 +6,11 @@ export type AuthStrategy =
   | { type: 'apiKey'; key: string; header?: string }
   /** @deprecated Not supported by saas_core v1.x (no server-side validation of bearer tokens); requests will be rejected. */
   | { type: 'bearer'; getToken: () => string | Promise<string | null | undefined> };
-export interface RetryOptions { retries?: number; baseDelayMs?: number; maxDelayMs?: number; }
+export interface RetryOptions {
+  retries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+}
 export interface ClientOptions {
   baseUrl: string;
   auth?: AuthStrategy;
@@ -20,7 +24,9 @@ export interface ClientOptions {
    */
   csrfToken?: string | (() => string | undefined | Promise<string | undefined>);
 }
-export interface Subscription { close(): void; }
+export interface Subscription {
+  close(): void;
+}
 /** Public surface. Every method throws SaasError subclasses. Tenant ids are the contract `Tenant.name`. */
 export interface SaasClient {
   plans: { list(p?: { currency?: string; interval?: T.Interval }): Promise<T.Plan[]> };
@@ -88,7 +94,11 @@ export interface SaasClient {
     portalLink(tenantId: string, returnUrl?: string): Promise<T.Link>;
     cancel(tenantId: string, i?: { at_period_end?: boolean; reason?: string }): Promise<T.Subscription>;
   };
-  invoices: { list(p?: T.ListParams & { tenant?: string }): Promise<T.Invoice[]>; get(id: string): Promise<T.Invoice>; pdf(id: string): Promise<Blob> };
+  invoices: {
+    list(p?: T.ListParams & { tenant?: string }): Promise<T.Invoice[]>;
+    get(id: string): Promise<T.Invoice>;
+    pdf(id: string): Promise<Blob>;
+  };
   paymentMethods: { portalLink(i?: { tenant?: string; return_url?: string }): Promise<T.Link> };
   jobs: { get(id: string): Promise<T.Job>; list(p?: T.ListParams & { tenant?: string }): Promise<T.Job[]> };
   support: {
@@ -100,7 +110,11 @@ export interface SaasClient {
   };
   events: { stream: SaasClient['subscribe'] };
   /** SSE GET events.stream?job=|tenant= with auto-reconnect (Last-Event-ID), falls back to polling jobs.get/tenants.get. */
-  subscribe(target: { jobId: string } | { tenantId: string }, onEvent: (e: T.SaasEvent) => void, onError?: (e: unknown) => void): Subscription;
+  subscribe(
+    target: { jobId: string } | { tenantId: string },
+    onEvent: (e: T.SaasEvent) => void,
+    onError?: (e: unknown) => void,
+  ): Subscription;
 }
 
 let bearerWarned = false;
@@ -108,42 +122,70 @@ let bearerWarned = false;
 export const createClient = (o: ClientOptions): SaasClient => {
   if (o.auth?.type === 'bearer' && !bearerWarned) {
     bearerWarned = true;
-    console.warn('[frappe-saaskit] auth type "bearer" is not supported by saas_core v1.x; requests will be rejected. Use "cookie" or "apiKey".');
+    console.warn(
+      '[frappe-saaskit] auth type "bearer" is not supported by saas_core v1.x; requests will be rejected. Use "cookie" or "apiKey".',
+    );
   }
   const http = createHttp(o);
   const get = <X>(p: string, query?: Record<string, string | undefined>) => http.request<X>('GET', p, { query });
   const post = <X>(p: string, body?: unknown) => http.request<X>('POST', p, { body: body ?? {} });
   // Only operations whose saas_core handler honours Idempotency-Key are retried automatically.
   const postIdem = <X>(p: string, body?: unknown) => http.request<X>('POST', p, { body: body ?? {}, idempotent: true });
-  const q = (r: object | undefined) => Object.fromEntries(Object.entries(r ?? {}).map(([k, v]) => [k, v === undefined ? undefined : String(v)])) as Record<string, string | undefined>;
+  const q = (r: object | undefined) =>
+    Object.fromEntries(Object.entries(r ?? {}).map(([k, v]) => [k, v === undefined ? undefined : String(v)])) as Record<
+      string,
+      string | undefined
+    >;
   const page = <X>(p: string, params?: object) => get<T.Page<X>>(p, q(params));
   const items = async <X>(p: string, params?: object) => (await page<X>(p, params)).items ?? [];
-  const remember = async (r: Promise<T.Me>) => { const me = await r; http.setCsrf(me.csrf_token); return me; };
-  const subscribe: SaasClient['subscribe'] = (target, onEvent, onError) => subscribeEvents(http, target, onEvent, onError, { retry: o.retry, pollIntervalMs: o.pollIntervalMs });
+  const remember = async (r: Promise<T.Me>) => {
+    const me = await r;
+    http.setCsrf(me.csrf_token);
+    return me;
+  };
+  const subscribe: SaasClient['subscribe'] = (target, onEvent, onError) =>
+    subscribeEvents(http, target, onEvent, onError, { retry: o.retry, pollIntervalMs: o.pollIntervalMs });
   return {
     plans: { list: (p) => items('plans.list', p) },
     templates: { list: (p) => items('templates.list', p) },
     auth: {
       signup: (i) => remember(postIdem('signup', i)),
       login: (i) => remember(post('login', i)),
-      logout: async () => { await post('logout'); http.setCsrf(undefined); },
-      requestPasswordReset: async (email) => { await post('password_reset.request', { email }); },
-      confirmPasswordReset: async (i) => { await post('password_reset.confirm', i); },
-      requestEmailVerification: async () => { await post('verify_email.request'); },
-      confirmEmail: async (key) => { await post('verify_email.confirm', { key }); },
+      logout: async () => {
+        await post('logout');
+        http.setCsrf(undefined);
+      },
+      requestPasswordReset: async (email) => {
+        await post('password_reset.request', { email });
+      },
+      confirmPasswordReset: async (i) => {
+        await post('password_reset.confirm', i);
+      },
+      requestEmailVerification: async () => {
+        await post('verify_email.request');
+      },
+      confirmEmail: async (key) => {
+        await post('verify_email.confirm', { key });
+      },
     },
     me: { get: () => remember(get('me')), update: (i) => remember(post('me.update', i)) },
     apiTokens: {
       list: (p) => items('api_tokens.list', p),
       create: (i) => postIdem('api_tokens.create', i),
-      revoke: async (token) => { await post('api_tokens.revoke', { token }); },
+      revoke: async (token) => {
+        await post('api_tokens.revoke', { token });
+      },
     },
     team: {
       list: (t, p) => items('tenants.team.list', { ...p, tenant: t }),
       invite: (t, i) => postIdem('tenants.team.invite', { tenant: t, ...i }),
-      revokeInvite: async (t, invite) => { await post('tenants.team.revoke_invite', { tenant: t, invite }); },
+      revokeInvite: async (t, invite) => {
+        await post('tenants.team.revoke_invite', { tenant: t, invite });
+      },
       changeRole: (t, member, role) => post('tenants.team.change_role', { tenant: t, member, role }),
-      remove: async (t, member) => { await post('tenants.team.remove', { tenant: t, member }); },
+      remove: async (t, member) => {
+        await post('tenants.team.remove', { tenant: t, member });
+      },
       acceptInvite: (token) => post('team.accept_invite', { token }),
     },
     tenants: {
@@ -188,12 +230,14 @@ export const createClient = (o: ClientOptions): SaasClient => {
       close: (ticket) => post('support.tickets.close', { ticket }),
     },
     config: { get: () => get('config') },
-    admin: { tenants: {
-      list: (p) => items('admin.tenants.list', p),
-      listPage: (p) => page('admin.tenants.list', p),
-      create: (i) => post('admin.tenants.create', i),
-      invite: (i) => post('admin.tenants.invite', i),
-    } },
+    admin: {
+      tenants: {
+        list: (p) => items('admin.tenants.list', p),
+        listPage: (p) => page('admin.tenants.list', p),
+        create: (i) => post('admin.tenants.create', i),
+        invite: (i) => post('admin.tenants.invite', i),
+      },
+    },
     events: { stream: subscribe },
     subscribe,
   };
