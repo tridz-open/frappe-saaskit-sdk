@@ -25,3 +25,5 @@ Renames (T7): client `backups.restore` REMOVED (not in contract); `tenants.delet
 ## Phase 4 (contract v1.2.0)
 | P4 verify_email + tickets.close: codegen, client, mock, react, vue, README v0.4 (L3) | done | L3 | all packages | vitest + codegen --check + tsup build | dist built |
 | P4b v1.2 tests (verify_email, tickets.close) | done | L3 | client/mock/react/vue tests | vitest: client 41, mock 39, react 21, vue 15, node 3; codegen --check ok | |
+## Phase 5 (contract v1.3.0)
+| P5 codegen v1.3.0; client `config.get`, `admin.tenants.{list,listPage,create,invite}`; Subscription/Invoice `payment_mocked`; mock (config, signup_disabled 403, admin.* with 403 non-admin, capacity_exhausted 503, options publicSignup/paymentBanner/admin/capacityExhausted); react `usePublicConfig`, `useAdminTenants`, `useAdminCreateTenant`, `useAdminInviteTenant`; vue same names (L3) | done | L3 | all packages | codegen --check ok; vitest: client 47, mock 47, react 25, vue 17, node 3; tsc ok; tsup dist rebuilt | |

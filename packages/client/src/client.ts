@@ -35,6 +35,17 @@ export interface SaasClient {
     remove(tenantId: string, member: string): Promise<void>;
     acceptInvite(token: string): Promise<T.TeamMember>;
   };
+  /** Public site config (no auth): signup toggle and payment-mock banner. */
+  config: { get(): Promise<T.PublicConfig> };
+  /** SaaS Admin only (403 otherwise). create may fail 503 capacity_exhausted. */
+  admin: {
+    tenants: {
+      list(p?: T.ListParams & { status?: T.TenantStatus; owner_email?: string }): Promise<T.Tenant[]>;
+      listPage(p?: T.ListParams & { status?: T.TenantStatus; owner_email?: string }): Promise<T.Page<T.Tenant>>;
+      create(i: T.AdminTenantCreateRequest): Promise<T.TenantCreated>;
+      invite(i: T.AdminTenantInviteRequest): Promise<T.TeamMember>;
+    };
+  };
   tenants: {
     list(p?: T.ListParams & { status?: T.TenantStatus }): Promise<T.Tenant[]>;
     listPage(p?: T.ListParams & { status?: T.TenantStatus }): Promise<T.Page<T.Tenant>>;
@@ -53,7 +64,10 @@ export interface SaasClient {
     /** Guarded: returns a pending approval request, never a job. */
     restore(tenantId: string, backup: string): Promise<T.RestoreApproval>;
   };
-  checkout: { createSession(i: T.CheckoutRequest): Promise<T.CheckoutSession> };
+  checkout: {
+    createSession(i: T.CheckoutRequest): Promise<T.CheckoutSession>;
+    verifyPayment(gateway: string, payload: T.VerifyPaymentPayload): Promise<T.VerifyPaymentResult>;
+  };
   subscription: {
     get(tenantId: string): Promise<T.Subscription>;
     portalLink(tenantId: string, returnUrl?: string): Promise<T.Link>;
@@ -126,7 +140,10 @@ export const createClient = (o: ClientOptions): SaasClient => {
       downloadLink: (t, backup, part) => post('tenants.backups.download_link', { tenant: t, backup, part }),
       restore: (t, backup) => post('tenants.backups.restore', { tenant: t, backup }),
     },
-    checkout: { createSession: (i) => post('checkout.create_session', i) },
+    checkout: {
+      createSession: (i) => post('checkout.create_session', i),
+      verifyPayment: (gateway, payload) => post('checkout.verify_payment', { gateway, payload }),
+    },
     subscription: {
       get: (t) => get('subscription.get', { tenant: t }),
       portalLink: (t, return_url) => post('subscription.portal_link', { tenant: t, return_url }),
@@ -146,6 +163,13 @@ export const createClient = (o: ClientOptions): SaasClient => {
       reply: (ticket, body) => post('support.tickets.reply', { ticket, body }),
       close: (ticket) => post('support.tickets.close', { ticket }),
     },
+    config: { get: () => get('config') },
+    admin: { tenants: {
+      list: (p) => items('admin.tenants.list', p),
+      listPage: (p) => page('admin.tenants.list', p),
+      create: (i) => post('admin.tenants.create', i),
+      invite: (i) => post('admin.tenants.invite', i),
+    } },
     events: { stream: subscribe },
     subscribe,
   };

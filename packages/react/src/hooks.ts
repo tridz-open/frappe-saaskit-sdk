@@ -4,7 +4,7 @@ import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from '@frappe-saaskit/cli
 import type {
   ApiToken, ApiTokenCreated, CreateTokenInput, ProfileUpdate, RestoreApproval, TeamMember, TeamRole,
   Backup, BackupPart, CheckoutRequest, CheckoutSession, CreateTicketInput, Invoice, Job, Link, LoginRequest, Me, Plan,
-  SignupRequest, SuspendStatus, SupportTicket, Subscription, Template, Tenant, TenantCreateRequest, TenantCreated,
+  AdminTenantCreateRequest, AdminTenantInviteRequest, PublicConfig, SignupRequest, SuspendStatus, SupportTicket, Subscription, Template, Tenant, TenantCreateRequest, TenantCreated,
 } from '@frappe-saaskit/client';
 import { useSaasClient } from './provider';
 import { saasKeys } from './keys';
@@ -14,6 +14,8 @@ const useC = useSaasClient;
 // ---- queries
 export const usePlans = () => { const c = useC(); return useQuery<Plan[]>({ queryKey: saasKeys.plans(), queryFn: () => c.plans.list() }); };
 export const useTemplates = () => { const c = useC(); return useQuery<Template[]>({ queryKey: saasKeys.templates(), queryFn: () => c.templates.list() }); };
+export const usePublicConfig = () => { const c = useC(); return useQuery<PublicConfig>({ queryKey: saasKeys.config(), queryFn: () => c.config.get() }); };
+export const useAdminTenants = (p?: { status?: Tenant['status']; owner_email?: string }) => { const c = useC(); return useQuery<Tenant[]>({ queryKey: [...saasKeys.adminTenants(), p ?? {}], queryFn: () => c.admin.tenants.list(p) }); };
 export const useMe = () => { const c = useC(); return useQuery<Me>({ queryKey: saasKeys.me(), queryFn: () => c.me.get() }); };
 export const useTenants = () => { const c = useC(); return useQuery<Tenant[]>({ queryKey: saasKeys.tenants(), queryFn: () => c.tenants.list() }); };
 export const useTenant = (id: string) => { const c = useC(); return useQuery<Tenant>({ queryKey: saasKeys.tenant(id), queryFn: () => c.tenants.get(id), enabled: !!id }); };
@@ -69,6 +71,17 @@ export function useCloseTicket() {
     mutationFn: (ticket) => c.support.close(ticket),
     onSuccess: (t, ticket) => { qc.setQueryData(saasKeys.ticket(ticket), t); return qc.invalidateQueries({ queryKey: saasKeys.support() }); },
   });
+}
+export function useAdminCreateTenant() {
+  const c = useC(); const qc = useQueryClient();
+  return useMutation<TenantCreated, Error, AdminTenantCreateRequest>({
+    mutationFn: (i) => c.admin.tenants.create(i),
+    onSuccess: (r) => { seedJob(qc, r.job); return qc.invalidateQueries({ queryKey: saasKeys.adminTenants() }); },
+  });
+}
+export function useAdminInviteTenant() {
+  const c = useC(); const qc = useQueryClient();
+  return useMutation<TeamMember, Error, AdminTenantInviteRequest>({ mutationFn: (i) => c.admin.tenants.invite(i), onSuccess: () => qc.invalidateQueries({ queryKey: saasKeys.adminTenants() }) });
 }
 export function useAcceptInvite() {
   const c = useC(); const qc = useQueryClient();

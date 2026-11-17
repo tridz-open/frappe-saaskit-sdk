@@ -12,6 +12,7 @@ import {
   useChangeMemberRole, useRemoveMember, useAcceptInvite, useRestoreBackup,
   useSuspendStatus, useInvoice, useSubscriptionPortalLink, usePaymentMethodsPortalLink, useRequestPasswordReset,
   useRequestEmailVerification, useConfirmEmail, useCloseTicket,
+  usePublicConfig, useAdminTenants, useAdminCreateTenant, useAdminInviteTenant,
 } from './index';
 
 afterEach(cleanup);
@@ -295,5 +296,38 @@ describe('v1.2 hooks', () => {
     expect(close).toHaveBeenCalledWith('tk');
     expect(qc.getQueryData(saasKeys.ticket('tk'))).toEqual(closed);
     expect(spy).toHaveBeenCalledWith({ queryKey: saasKeys.support() });
+  });
+  it('usePublicConfig fetches config', async () => {
+    const get = vi.fn(async () => ({ public_signup: false, payment_banner: 'Test' }));
+    const { client } = fake({ config: { get } });
+    const { result } = renderHook(() => usePublicConfig(), { wrapper: wrap(client, qcNew()) });
+    await waitFor(() => expect(result.current.data).toEqual({ public_signup: false, payment_banner: 'Test' }));
+  });
+  it('useAdminTenants lists with filters', async () => {
+    const list = vi.fn(async () => [{ name: 'a' }]);
+    const { client } = fake({ admin: { tenants: { list } } });
+    const { result } = renderHook(() => useAdminTenants({ status: 'active' }), { wrapper: wrap(client, qcNew()) });
+    await waitFor(() => expect(result.current.data).toEqual([{ name: 'a' }]));
+    expect(list).toHaveBeenCalledWith({ status: 'active' });
+  });
+  it('useAdminCreateTenant seeds job and invalidates admin tenants', async () => {
+    const created = { tenant: { name: 't' }, job: { name: 'j9', state: 'queued' }, checkout_required: false };
+    const create = vi.fn(async () => created);
+    const { client } = fake({ admin: { tenants: { create } } });
+    const qc = qcNew(); const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useAdminCreateTenant(), { wrapper: wrap(client, qc) });
+    await act(async () => { await result.current.mutateAsync({ owner_email: 'o@x.com', plan: 'pro' }); });
+    expect(create).toHaveBeenCalledWith({ owner_email: 'o@x.com', plan: 'pro' });
+    expect(qc.getQueryData(saasKeys.job('j9'))).toEqual(created.job);
+    expect(spy).toHaveBeenCalledWith({ queryKey: saasKeys.adminTenants() });
+  });
+  it('useAdminInviteTenant calls invite and invalidates', async () => {
+    const invite = vi.fn(async () => ({ name: 'TM-1' }));
+    const { client } = fake({ admin: { tenants: { invite } } });
+    const qc = qcNew(); const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useAdminInviteTenant(), { wrapper: wrap(client, qc) });
+    await act(async () => { await result.current.mutateAsync({ tenant: 't', owner_email: 'o@x.com' }); });
+    expect(invite).toHaveBeenCalledWith({ tenant: 't', owner_email: 'o@x.com' });
+    expect(spy).toHaveBeenCalledWith({ queryKey: saasKeys.adminTenants() });
   });
 });

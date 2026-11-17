@@ -43,7 +43,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a customer account (optionally with intended plan/template) */
+        /**
+         * Create a customer account (optionally with intended plan/template)
+         * @description Returns 403 with error.code `signup_disabled` (signup closed), `not_allowlisted` (email not on the allowlist) or `invite_required` (invite-only mode and no valid `invite_token`).
+         */
         post: operations["signup"];
         delete?: never;
         options?: never;
@@ -164,6 +167,103 @@ export interface paths {
         put?: never;
         /** Create a hosted gateway checkout session for a new or existing tenant */
         post: operations["checkoutCreateSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.checkout.verify_payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify a client-side payment callback (e.g. Razorpay Checkout handler); same event path as webhooks
+         * @description Signature failures return 401 `invalid_signature`. Replays return status `duplicate`.
+         */
+        post: operations["checkoutVerifyPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public deployment config (signup toggle, payment banner) */
+        get: operations["publicConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.admin.tenants.list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all tenants across owners (SaaS Admin only)
+         * @description Requires the SaaS Admin role.
+         */
+        get: operations["adminTenantsList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.admin.tenants.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a tenant on behalf of an owner (SaaS Admin only)
+         * @description Requires the SaaS Admin role. Returns 503 `capacity_exhausted` when no server has capacity.
+         */
+        post: operations["adminTenantsCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/method/saas_core.api.v1.admin.tenants.invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite a tenant owner by email (SaaS Admin only)
+         * @description Requires the SaaS Admin role. Sends an owner invite for an existing tenant.
+         */
+        post: operations["adminTenantsInvite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -931,12 +1031,36 @@ export interface components {
             recipe_fields?: {
                 [key: string]: unknown;
             };
+            /** @description Invite token from a team invite; satisfies invite-only signup */
+            invite_token?: string;
         };
         LoginRequest: {
             /** Format: email */
             email: string;
             /** Format: password */
             password: string;
+        };
+        PublicConfig: {
+            /** @description When false, signup returns 403 signup_disabled */
+            public_signup: boolean;
+            /** @description Non-empty when payments are mocked/test mode; show as a site-wide banner */
+            payment_banner?: string | null;
+        };
+        AdminTenantCreateRequest: {
+            /** Format: email */
+            owner_email: string;
+            /** @description Display name */
+            name?: string;
+            /** @description Subdomain/slug; server derives one from name when omitted */
+            subdomain?: components["schemas"]["Slug"];
+            /** @description Plan code */
+            plan: string;
+            template?: string;
+        } | unknown | unknown;
+        AdminTenantInviteRequest: {
+            tenant: string;
+            /** Format: email */
+            owner_email: string;
         };
         Me: {
             user: string;
@@ -964,7 +1088,12 @@ export interface components {
             };
         };
         CheckoutSession: {
+            /** @description True when the gateway is mocked (no real charge) */
+            payment_mocked?: boolean;
+            subscription_status?: string;
             gateway: components["schemas"]["Gateway"];
+            /** @description Present when the gateway is completed in-page (e.g. Razorpay Checkout) instead of by redirecting to `url` */
+            client_payload?: components["schemas"]["RazorpayClientPayload"] | components["schemas"]["GenericClientPayload"];
             session_id: string;
             /** Format: uri */
             url: string;
@@ -973,6 +1102,55 @@ export interface components {
             public_key?: string;
             /** Format: date-time */
             expires_at?: string;
+            /**
+             * @description Present when a Razorpay subscription fell back to a one-time order; the customer pays an invoice instead of a recurring mandate
+             * @enum {string}
+             */
+            fallback?: "invoice";
+        };
+        RazorpayClientPayload: {
+            /** @enum {string} */
+            provider: "razorpay";
+            /** @description publishable key id */
+            key: string;
+            /** @enum {string} */
+            mode: "order" | "subscription";
+            order_id?: string;
+            subscription_id?: string;
+            /** @description minor units (order mode) */
+            amount?: number;
+            currency?: string;
+            name?: string;
+            description?: string;
+            prefill?: {
+                email?: string;
+            } & {
+                [key: string]: unknown;
+            };
+            notes?: {
+                [key: string]: unknown;
+            };
+        };
+        GenericClientPayload: {
+            provider: string;
+        } & {
+            [key: string]: unknown;
+        };
+        VerifyPaymentRequest: {
+            /** @enum {string} */
+            gateway: "razorpay" | "stripe" | "paddle" | "manual";
+            /** @description Gateway client-callback data (e.g. razorpay_payment_id, razorpay_signature, razorpay_subscription_id|razorpay_order_id) */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        VerifyPaymentResult: {
+            /**
+             * @description duplicate: event already recorded; accepted: queued for processing; ignored: recorded but irrelevant
+             * @enum {string}
+             */
+            status: "ok" | "duplicate" | "accepted" | "ignored";
+            tenant?: string;
         };
         Tenant: {
             name: string;
@@ -1043,6 +1221,8 @@ export interface components {
             parts?: ("database" | "public" | "private")[];
         };
         Subscription: {
+            /** @description True when the payment gateway is mocked (no real charge) */
+            payment_mocked?: boolean;
             tenant: string;
             plan: string;
             status: components["schemas"]["SubscriptionStatus"];
@@ -1056,6 +1236,8 @@ export interface components {
             trial_end?: string | null;
         };
         Invoice: {
+            /** @description True when the payment gateway is mocked (no real charge) */
+            payment_mocked?: boolean;
             name: string;
             tenant?: string;
             number?: string;
@@ -1236,7 +1418,7 @@ export interface components {
         Event: components["schemas"]["EventJobUpdated"] | components["schemas"]["EventTenantUpdated"] | components["schemas"]["EventSubscriptionUpdated"] | components["schemas"]["EventJobStep"] | components["schemas"]["EventInvoiceCreated"] | components["schemas"]["EventResync"];
         Error: {
             error: {
-                /** @description stable machine code e.g. validation_error, not_found, forbidden, conflict, idempotency_mismatch, rate_limited, capacity_unavailable, payment_required, gateway_error, internal */
+                /** @description stable machine code e.g. validation_error, not_found, forbidden, conflict, idempotency_mismatch, rate_limited, capacity_unavailable, capacity_exhausted (503), signup_disabled / not_allowlisted / invite_required (403), invalid_signature (401), payment_required, gateway_error, internal */
                 code: string;
                 message: string;
                 field_errors?: {
@@ -1304,6 +1486,15 @@ export interface components {
         };
         /** @description Validation failed */
         Unprocessable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Capacity exhausted (error.code capacity_exhausted) */
+        ServiceUnavailable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1420,6 +1611,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             429: components["responses"]["RateLimited"];
@@ -1613,6 +1805,170 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
+            default: components["responses"]["Error"];
+        };
+    };
+    checkoutVerifyPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyPaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["VerifyPaymentResult"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
+            default: components["responses"]["Error"];
+        };
+    };
+    publicConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["PublicConfig"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    adminTenantsList: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                status?: components["schemas"]["TenantStatus"];
+                owner_email?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: {
+                            items: components["schemas"]["Tenant"][];
+                            next_cursor: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            default: components["responses"]["Error"];
+        };
+    };
+    adminTenantsCreate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Same key+same body within 24h returns the original response; same key+different body is 409 idempotency_mismatch. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTenantCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["TenantCreated"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+            default: components["responses"]["Error"];
+        };
+    };
+    adminTenantsInvite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Same key+same body within 24h returns the original response; same key+different body is 409 idempotency_mismatch. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTenantInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["TeamMember"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];

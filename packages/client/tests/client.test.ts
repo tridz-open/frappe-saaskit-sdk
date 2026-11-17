@@ -64,6 +64,12 @@ describe('errors', () => {
     expect(e).toMatchObject({ status: s, code: 'c', message: 'm', fieldErrors: { a: 'bad' } });
     expect(f).toHaveBeenCalledTimes(1);
   });
+  it('unwraps Frappe {message:{error}} envelope so err.code is the server code', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ message: { error: { code: 'signup_disabled', message: 'Signup is currently closed' } } }), { status: 403 }));
+    const e = await mk(f).me.get().catch((x) => x);
+    expect(e).toBeInstanceOf(ForbiddenError);
+    expect(e).toMatchObject({ status: 403, code: 'signup_disabled', message: 'Signup is currently closed' });
+  });
   it('429 with Retry-After retries then throws', async () => {
     const f = vi.fn(async () => err(429, { message: 'slow' }, { 'Retry-After': '0' }));
     const e = await mk(f).me.get().catch((x) => x);
@@ -171,6 +177,14 @@ describe('methods', () => {
     await c.checkout.createSession({ plan: 'p' } as any);
     expect(call(f, 0).url).toBe(`${P}checkout.create_session`);
     expect(bodyOf(f, 0)).toEqual({ plan: 'p' });
+  });
+
+  it('checkout.verifyPayment', async () => {
+    const { f, c } = setup({ status: 'ok' });
+    const r = await c.checkout.verifyPayment('razorpay', { razorpay_payment_id: 'p', razorpay_signature: 's' });
+    expect(call(f, 0).url).toBe(`${P}checkout.verify_payment`);
+    expect(bodyOf(f, 0)).toEqual({ gateway: 'razorpay', payload: { razorpay_payment_id: 'p', razorpay_signature: 's' } });
+    expect(r.status).toBe('ok');
   });
 
   it('subscription get/portalLink/cancel', async () => {
@@ -403,5 +417,47 @@ describe('v1.2 additions', () => {
   it('support.close maps 404 to NotFoundError', async () => {
     const f = vi.fn(async () => err(404));
     await expect(mk(f).support.close('nope')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('v1.3 config + admin tenants', () => {
+  it('config.get GETs config', async () => {
+    const f = vi.fn(async () => ok({ public_signup: false, payment_banner: 'Test mode' }));
+    const c = await mk(f).config.get();
+    expect(call(f, 0).url).toBe(`${P}config`);
+    expect(call(f, 0).init.method).toBe('GET');
+    expect(c).toEqual({ public_signup: false, payment_banner: 'Test mode' });
+  });
+  it('admin.tenants.list passes filters and unwraps items; listPage keeps cursor', async () => {
+    const f = vi.fn(async () => ok({ items: [{ name: 'a' }], next_cursor: 'n1' }));
+    const items = await mk(f).admin.tenants.list({ status: 'active', owner_email: 'o@x.com', limit: 5 });
+    const u = call(f, 0).url;
+    expect(u).toContain(`${P}admin.tenants.list?`);
+    expect(u).toContain('status=active'); expect(u).toContain('owner_email=o%40x.com'); expect(u).toContain('limit=5');
+    expect(items).toEqual([{ name: 'a' }]);
+    expect((await mk(f).admin.tenants.listPage()).next_cursor).toBe('n1');
+  });
+  it('admin.tenants.create posts body and returns TenantCreated', async () => {
+    const f = vi.fn(async () => ok({ tenant: { name: 't' }, job: { name: 'j' }, checkout_required: false }, 202));
+    const r = await mk(f).admin.tenants.create({ owner_email: 'o@x.com', plan: 'pro', subdomain: 'acme' });
+    expect(call(f, 0).url).toBe(`${P}admin.tenants.create`);
+    expect(call(f, 0).init.method).toBe('POST');
+    expect(bodyOf(f, 0)).toEqual({ owner_email: 'o@x.com', plan: 'pro', subdomain: 'acme' });
+    expect(r.job.name).toBe('j');
+  });
+  it('admin.tenants.invite posts body', async () => {
+    const f = vi.fn(async () => ok({ name: 'TM-1', role: 'owner' }, 201));
+    await mk(f).admin.tenants.invite({ tenant: 't', owner_email: 'o@x.com' });
+    expect(call(f, 0).url).toBe(`${P}admin.tenants.invite`);
+    expect(bodyOf(f, 0)).toEqual({ tenant: 't', owner_email: 'o@x.com' });
+  });
+  it('403 admin maps to ForbiddenError; signup_disabled code preserved', async () => {
+    const f = vi.fn(async () => err(403, { code: 'signup_disabled', message: 'off' }));
+    await expect(mk(f).admin.tenants.list()).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(mk(f).auth.signup({ email: 'a@b.co', password: 'longpassword1' } as any)).rejects.toMatchObject({ code: 'signup_disabled', status: 403 });
+  });
+  it('503 capacity_exhausted maps to ServerError with code', async () => {
+    const f = vi.fn(async () => err(503, { code: 'capacity_exhausted', message: 'full' }));
+    await expect(mk(f).admin.tenants.create({ owner_email: 'o@x.com', plan: 'pro' })).rejects.toMatchObject({ code: 'capacity_exhausted', status: 503 });
   });
 });

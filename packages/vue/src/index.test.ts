@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createApp, defineComponent, effectScope, h, nextTick, ref } from 'vue';
 import type { SaasClient } from '@frappe-saaskit/client';
-import { SAAS_CLIENT_KEY, useTenants, useTenant, useCreateTenant, useJob, useSaasClient, useRequestDeleteTenant, useDeleteTenant, useSubscription, useCheckout, useLogin, useBackupDownloadLink, useReplyToTicket, useTenantLive, useTemplates, useUpdateProfile, useApiTokens, useCreateApiToken, useRevokeApiToken, useTeamMembers, useInviteMember, useRevokeInvite, useChangeMemberRole, useRemoveMember, useAcceptInvite, useRestoreBackup, useRequestEmailVerification, useConfirmEmail, useCloseTicket } from './index';
+import { SAAS_CLIENT_KEY, useTenants, useTenant, useCreateTenant, useJob, useSaasClient, useRequestDeleteTenant, useDeleteTenant, useSubscription, useCheckout, useLogin, useBackupDownloadLink, useReplyToTicket, useTenantLive, useTemplates, useUpdateProfile, useApiTokens, useCreateApiToken, useRevokeApiToken, useTeamMembers, useInviteMember, useRevokeInvite, useChangeMemberRole, useRemoveMember, useAcceptInvite, useRestoreBackup, useRequestEmailVerification, useConfirmEmail, useCloseTicket, usePublicConfig, useAdminTenants, useAdminCreateTenant, useAdminInviteTenant } from './index';
 
 const flush = async () => { await Promise.resolve(); await nextTick(); await new Promise((r) => setTimeout(r, 0)); };
 function fake(over: Record<string, unknown> = {}) {
@@ -123,5 +123,20 @@ describe('v1.2 composables', () => {
     const { c } = fake({ auth: { confirmEmail: async () => { throw new Error('bad'); } } });
     const { out } = inScope(c, () => useConfirmEmail());
     await expect(out.mutate('K')).rejects.toThrow('bad'); expect(out.error.value?.message).toBe('bad');
+  });
+  it('usePublicConfig and useAdminTenants load data', async () => {
+    const { c } = fake({ config: { get: vi.fn(async () => ({ public_signup: true, payment_banner: null })) }, admin: { tenants: { list: vi.fn(async () => [{ name: 'a' }]) } } });
+    const a = inScope(c, () => usePublicConfig()); const b = inScope(c, () => useAdminTenants({ status: 'active' })); await flush();
+    expect(a.out.data.value).toEqual({ public_signup: true, payment_banner: null });
+    expect(b.out.data.value).toEqual([{ name: 'a' }]);
+    expect((c as any).admin.tenants.list).toHaveBeenCalledWith({ status: 'active' });
+  });
+  it('useAdminCreateTenant and useAdminInviteTenant call admin endpoints', async () => {
+    const create = vi.fn(async () => ({ tenant: { name: 't' }, job: { name: 'j' } })); const invite = vi.fn(async () => ({ name: 'TM-1' }));
+    const { c } = fake({ admin: { tenants: { create, invite } } });
+    const a = inScope(c, () => useAdminCreateTenant()); const b = inScope(c, () => useAdminInviteTenant());
+    await a.out.mutate({ owner_email: 'o@x.com', plan: 'pro' }); await b.out.mutate({ tenant: 't', owner_email: 'o@x.com' });
+    expect(create).toHaveBeenCalledWith({ owner_email: 'o@x.com', plan: 'pro' });
+    expect(invite).toHaveBeenCalledWith({ tenant: 't', owner_email: 'o@x.com' });
   });
 });

@@ -13,8 +13,27 @@ export type SignupRequest = S['SignupRequest'];
 export type LoginRequest = S['LoginRequest'];
 export type Me = S['Me'];
 export type CheckoutRequest = S['CheckoutRequest'];
-export type CheckoutSession = S['CheckoutSession'];
+export type RazorpayClientPayload = S['RazorpayClientPayload'];
+/** Provider-specific data the browser needs to open an in-page checkout (e.g. Razorpay modal). */
+export type ClientPayload = NonNullable<S['CheckoutSession']['client_payload']>;
+/**
+ * Checkout session. `fallback: 'invoice'` is set by the server when a Razorpay
+ * subscription fell back to a one-time order (pay the invoice instead of a recurring mandate).
+ */
+export type CheckoutSession = Omit<S['CheckoutSession'], 'url'> & { url?: string; fallback?: 'invoice' };
+/** Razorpay Checkout handler response, posted back for server-side signature verification. */
+export interface RazorpayPaymentResponse {
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  razorpay_subscription_id?: string;
+  razorpay_order_id?: string;
+}
+export type VerifyPaymentPayload = RazorpayPaymentResponse | Record<string, unknown>;
+export type VerifyPaymentResult = S['VerifyPaymentResult'];
 export type Tenant = S['Tenant'];
+export type PublicConfig = S['PublicConfig'];
+export type AdminTenantCreateRequest = S['AdminTenantCreateRequest'];
+export type AdminTenantInviteRequest = S['AdminTenantInviteRequest'];
 export type TenantCreateRequest = S['TenantCreateRequest'];
 export type TenantCreated = S['TenantCreated'];
 export type SuspendStatus = S['SuspendStatus'];

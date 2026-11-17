@@ -12,6 +12,93 @@ TypeScript SDK monorepo for building SaaS front ends on top of the `saas_core` F
 | `@frappe-saaskit/node` | Helpers for agents and CLIs (`createNodeClient`, `tokenFromEnv`, `loadTokenFile`). |
 | `@frappe-saaskit/mock` | In-memory mock backend for tests and demos. |
 
+## Quickstart
+
+All names below are exported from each package `src/index.ts`. `baseUrl` is the site origin (the client appends `/api/method/saas_core.api.v1.<op>`); use `''` for same-origin.
+
+### Framework-free client
+
+```ts
+import { createClient, SaasError, ValidationError } from '@frappe-saaskit/client';
+
+const client = createClient({ baseUrl: 'https://app.example.com', auth: { type: 'cookie' } });
+
+await client.auth.login({ email: 'me@example.com', password: '...' }); // stores the CSRF token
+const plans = await client.plans.list();
+const tenants = await client.tenants.list();
+
+try {
+  await client.tenants.create({ slug: 'acme', plan: 'pro' }); // TenantCreateRequest
+} catch (e) {
+  if (e instanceof ValidationError) console.log(e.fieldErrors);
+  else if (e instanceof SaasError) console.log(e.status, e.code, e.requestId);
+}
+```
+
+### React
+
+```tsx
+import { createClient } from '@frappe-saaskit/client';
+import { SaasProvider, usePlans, useCheckout, useRazorpayCheckout, useJob } from '@frappe-saaskit/react';
+
+const client = createClient({ baseUrl: '', auth: { type: 'cookie' } });
+
+function Buy() {
+  const plans = usePlans();
+  const checkout = useCheckout();
+  const rzp = useRazorpayCheckout();
+  const buy = async () => {
+    const session = await checkout.mutateAsync({
+      plan: 'pro', interval: 'month', slug: 'acme',
+      success_url: location.origin + '/done', cancel_url: location.href,
+    });
+    if (session.client_payload) await rzp.open(session); // Checkout.js, then verifyPayment
+    else if (session.url) location.href = session.url;   // hosted gateways
+  };
+  /* render plans.data, call buy() */
+}
+
+export const App = () => <SaasProvider client={client}><Buy /></SaasProvider>;
+```
+
+`useJob(jobId)` and `useTenantLive(tenantId)` follow provisioning live. Full hook list: [packages/react/README.md](packages/react/README.md).
+
+### Vue
+
+```ts
+import { createApp } from 'vue';
+import { createClient } from '@frappe-saaskit/client';
+import { SAAS_CLIENT_KEY, usePlans, useCheckout } from '@frappe-saaskit/vue';
+
+const app = createApp(App);
+app.provide(SAAS_CLIENT_KEY, createClient({ baseUrl: '', auth: { type: 'cookie' } }));
+// in a component: const { data: plans, loading } = usePlans(); const { mutate } = useCheckout();
+```
+
+### Node agents and CLIs
+
+```ts
+import { createNodeClient, tokenFromEnv } from '@frappe-saaskit/node';
+
+const client = createNodeClient({ baseUrl: 'https://app.example.com', token: tokenFromEnv() }); // SAASKIT_TOKEN
+const sub = client.subscribe({ jobId: 'PJ-000001' }, (e) => console.log(e.type));
+```
+
+### Mock backend (tests and demos)
+
+```ts
+import { createClient } from '@frappe-saaskit/client';
+import { createMockFetch } from '@frappe-saaskit/mock';
+
+const fetch = createMockFetch({ stepMs: 0 });
+const client = createClient({ baseUrl: 'http://localhost', auth: { type: 'cookie' }, fetch });
+// msw alternative: createMockServer() (Node) or createMockHandlers() (browser worker)
+```
+
+## Architecture
+
+Package map, request lifecycle (CSRF, auth, error envelope), the Razorpay checkout sequence and mock-vs-real wiring, as SVG diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Develop
 
 ```bash
