@@ -6,19 +6,19 @@ Facts here come from the source: `packages/*/src/index.ts`, `packages/client/src
 
 ## 1. Package map
 
-`@frappe-saaskit/client` is the only package that talks HTTP. Its types are generated from the saas_core OpenAPI contract (`../saas_core/openapi/v1.yaml`) by `scripts/codegen.mjs` into `packages/client/src/generated/schema.d.ts`. `react`, `vue` and `node` are thin layers over the client. `mock` depends on the client types and answers the same URLs from memory.
+`@frappe-saaskit/client` is the only package that talks HTTP. Its types are generated from the saas_core OpenAPI contract (vendored at `spec/v1.yaml`, or `OPENAPI_PATH`) by `scripts/codegen.mjs` into `packages/client/src/generated/schema.d.ts`. `react`, `vue` and `node` are thin layers over the client. `mock` depends on the client types and answers the same URLs from memory.
 
 ![saas-kit package map](assets/package-map.svg)
 
 | Package | Runtime deps | Entry points (from `src/index.ts`) |
 |---|---|---|
-| client | `openapi-fetch` | `createClient`, `SaasClient`, `ClientOptions`, `AuthStrategy`, `RetryOptions`, error classes, `TERMINAL_JOB_STATES`, `STABLE_TENANT_STATUSES`, `components`/`paths`/`operations` |
+| client | none at runtime | `createClient`, `SaasClient`, `ClientOptions`, `AuthStrategy`, `RetryOptions`, error classes, `TERMINAL_JOB_STATES`, `STABLE_TENANT_STATUSES`, `components`/`paths`/`operations` |
 | react | client (workspace), peers `react`, `@tanstack/react-query` | `SaasProvider`, `useSaasClient`, `saasKeys`, all hooks, `useRazorpayCheckout`, `loadRazorpayScript`, `RAZORPAY_SCRIPT_URL` |
 | vue | client (workspace), peer `vue` | `provideSaas`, `useSaasClient`, `SAAS_CLIENT_KEY`, composables (`usePlans`, `useCheckout`, `useJob`, ...) |
 | node | client (workspace) | `createNodeClient`, `tokenFromEnv`, `loadTokenFile` |
-| mock | client (workspace), `msw` | `createMockFetch`, `createMockHandlers`, `createMockServer`, `createMockApi` |
+| mock | client (workspace), `msw` | `createMockFetch`, `createMockHandlers`, `createMockApi` (root); `createMockServer` (`/node`); `createMockWorker` (`/browser`) |
 
-Contract drift is caught by `pnpm codegen:check` (CI); it exits non-zero if `schema.d.ts` no longer matches the spec.
+Contract drift is caught by `pnpm codegen:check`, which exits non-zero if `schema.d.ts` no longer matches the spec. The spec is vendored in `spec/`, so it always runs, in CI too; a missing spec is an error.
 
 ## 2. Request lifecycle: CSRF, auth and the error envelope
 
@@ -26,9 +26,9 @@ All calls go through `createHttp` in `client/src/http.ts`. URL shape is `<baseUr
 
 ![Request lifecycle: CSRF, auth and the error envelope](assets/request-lifecycle.svg)
 
-- **Auth modes** (`AuthStrategy`): `{ type: 'cookie' }` (browser; CSRF token comes from `Me.csrf_token` after `login`, `signup`, `me.get` or `me.update`), `{ type: 'apiKey', key, header? }` (`Authorization: token <key>` unless a custom header is set), `{ type: 'bearer', getToken }` (`Authorization: Bearer <token>`, resolved per request).
-- **CSRF** is only attached for cookie auth on non-GET requests.
-- **Envelope**: Frappe wraps whitelisted responses as `{ "message": <payload> }`; the client unwraps it. Errors carry `{ error: { code, message, field_errors, request_id, retry_after } }`, also unwrapped from `message` if needed.
+- **Auth modes** (`AuthStrategy`): `{ type: 'cookie' }` (browser; CSRF token comes from `Me.csrf_token` after `login`, `signup`, `me.get` or `me.update`), `{ type: 'apiKey', key, header? }` (`Authorization: token <key>` unless a custom header is set), `{ type: 'bearer', getToken }` (unsupported by saas_core v1.x, deprecated).
+- **CSRF** is only attached for cookie auth on non-GET requests. Before the first mutation the client takes the token from the `csrfToken` option, `window.csrf_token`, or one single-flight `me` call; a `CsrfError` triggers one refresh and one replay.
+- **Envelope**: Frappe wraps whitelisted responses as `{ "message": <payload> }`; the client unwraps it. Errors carry `{ error: { code, message, field_errors, request_id, retry_after } }`, also unwrapped from `message` if needed; Frappe-native bodies (`exc_type`, `_server_messages`) are mapped too, and a non-JSON 2xx becomes `SaasError` (`non_json_response`).
 - **Error mapping** (`mapError`):
 
 | Status | Class | Retried |
@@ -37,10 +37,11 @@ All calls go through `createHttp` in `client/src/http.ts`. URL shape is `<baseUr
 | 403 | `ForbiddenError` | no |
 | 404 | `NotFoundError` | no |
 | 409 | `ConflictError` | no |
-| 400, 422 | `ValidationError` (`fieldErrors`) | no |
-| 429 | `RateLimitError` (`retryAfterMs` from `Retry-After` or `retry_after`) | yes |
-| 5xx | `ServerError` | yes |
-| fetch failure | `NetworkError` | yes |
+| 400, 417, 422 | `ValidationError` (`fieldErrors`) | no |
+| `CSRFTokenError` | `CsrfError` (extends `AuthError`) | refreshed and replayed once |
+| 429 | `RateLimitError` (`retryAfterMs` from `Retry-After` or `retry_after`) | GET and idempotent POSTs only |
+| 5xx | `ServerError` | GET and idempotent POSTs only |
+| fetch failure | `NetworkError` | GET and idempotent POSTs only |
 | other | `SaasError` | no |
 
 All extend `SaasError` (`status`, `code`, `fieldErrors`, `requestId`). Retries default to 3 with exponential backoff and jitter (`RetryOptions`: `retries`, `baseDelayMs` 250, `maxDelayMs` 5000).

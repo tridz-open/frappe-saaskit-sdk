@@ -32,19 +32,21 @@ describe('auth strategies', () => {
   });
   it('CSRF header sent after login with cookie auth, cleared on logout', async () => {
     const f = vi.fn()
+      .mockResolvedValueOnce(ok({ email: 'guest' })) // bootstrap me: guest session, no token
       .mockResolvedValueOnce(ok({ email: 'a', csrf_token: 'CSRF1' }))
       .mockResolvedValueOnce(ok({}))
       .mockResolvedValueOnce(ok(null))
+      .mockResolvedValueOnce(ok({}))
       .mockResolvedValueOnce(ok({}));
     const c = mk(f, { auth: { type: 'cookie' } });
     await c.auth.login({ email: 'a', password: 'p' } as any);
-    expect(call(f, 0).init.headers.get('X-Frappe-CSRF-Token')).toBeNull();
+    expect(call(f, 1).init.headers.get('X-Frappe-CSRF-Token')).toBeNull();
     await c.tenants.openLoginLink('t1');
-    expect(call(f, 1).init.headers.get('X-Frappe-CSRF-Token')).toBe('CSRF1');
-    await c.auth.logout();
     expect(call(f, 2).init.headers.get('X-Frappe-CSRF-Token')).toBe('CSRF1');
+    await c.auth.logout();
+    expect(call(f, 3).init.headers.get('X-Frappe-CSRF-Token')).toBe('CSRF1');
     await c.tenants.openLoginLink('t1');
-    expect(call(f, 3).init.headers.get('X-Frappe-CSRF-Token')).toBeNull();
+    expect(call(f, 5).init.headers.get('X-Frappe-CSRF-Token')).toBeNull();
   });
   it('CSRF not sent on GET or non-cookie auth', async () => {
     const f = vi.fn(async () => ok({ email: 'a', csrf_token: 'C' }));
@@ -324,16 +326,17 @@ describe('profile, tokens, team, restore', () => {
   };
   it('me.update posts, unwraps and stores csrf', async () => {
     const f = vi.fn()
+      .mockResolvedValueOnce(ok({ email: 'a', csrf_token: 'C0' })) // bootstrap me
       .mockResolvedValueOnce(ok({ email: 'a', csrf_token: 'C9' }))
       .mockResolvedValueOnce(ok({}));
     const c = mk(f, { auth: { type: 'cookie' } });
     const r = await c.me.update({ full_name: 'N' } as any);
-    expect(call(f, 0).url).toBe(`${P}me.update`);
-    expect(call(f, 0).init.method).toBe('POST');
-    expect(bodyOf(f, 0)).toEqual({ full_name: 'N' });
+    expect(call(f, 1).url).toBe(`${P}me.update`);
+    expect(call(f, 1).init.method).toBe('POST');
+    expect(bodyOf(f, 1)).toEqual({ full_name: 'N' });
     expect(r.email).toBe('a');
     await c.tenants.openLoginLink('t1');
-    expect(call(f, 1).init.headers.get('X-Frappe-CSRF-Token')).toBe('C9');
+    expect(call(f, 2).init.headers.get('X-Frappe-CSRF-Token')).toBe('C9');
   });
   it('apiTokens list/create/revoke', async () => {
     let x = await run({ items: [{ name: 't' }], next_cursor: null }, (c) => c.apiTokens.list());
