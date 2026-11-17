@@ -106,6 +106,10 @@ describe('tenants + jobs', () => {
     expect((await get('tenants.get', { tenant: 'acme' })).json.message.status).toBe('active');
     expect((await get('tenants.get', { tenant: 'zzz' })).status).toBe(404);
     expect((await get('tenants.get')).status).toBe(422);
+    const av = (await get('tenants.slug_availability', { slug: 'acme' })).json.message;
+    expect(av).toMatchObject({ slug: 'acme', available: false, reason: 'taken', suggestion: 'acme-2' });
+    expect((await get('tenants.slug_availability', { slug: 'admin' })).json.message.reason).toBe('reserved');
+    expect((await get('tenants.slug_availability', { slug: 'fresh-co' })).json.message).toMatchObject({ available: true, reason: null, suggestion: null });
   });
   it('tenants.create validates slug, conflicts, then provisions', async () => {
     const { post, get, settle } = mk();
@@ -486,7 +490,7 @@ describe('v1.3 additions', () => {
     expect(r.json.message.public_signup).toBe(true);
     expect(r.json.message.payment_banner).toBeTruthy();
     const b = mk({ publicSignup: false, paymentBanner: null });
-    expect((await b.get('config')).json.message).toEqual({ public_signup: false, payment_banner: null });
+    expect((await b.get('config')).json.message).toEqual({ public_signup: false, payment_banner: null, site_domain: 'mock.example.com' });
   });
   it('signup returns 403 signup_disabled when public signup is off', async () => {
     const { post } = mk({ loggedIn: false, publicSignup: false });

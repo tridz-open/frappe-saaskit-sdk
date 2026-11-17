@@ -8,6 +8,7 @@ export const saasKeys = {
   team: (tenantId: string) => ['saas', 'team', tenantId] as const,
   me: () => ['saas', 'me'] as const,
   tenants: () => ['saas', 'tenants'] as const,
+  slugAvailability: (slug: string) => ['saas', 'slug-availability', slug] as const,
   tenant: (id: string) => ['saas', 'tenants', id] as const,
   suspendStatus: (id: string) => ['saas', 'tenants', id, 'suspend-status'] as const,
   backups: (tenantId: string) => ['saas', 'backups', tenantId] as const,

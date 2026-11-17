@@ -4,7 +4,7 @@ import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from '@frappe-saaskit/cli
 import type {
   ApiToken, ApiTokenCreated, CreateTokenInput, ProfileUpdate, RestoreApproval, TeamMember, TeamRole,
   Backup, BackupPart, CheckoutRequest, CheckoutSession, CreateTicketInput, Invoice, Job, Link, LoginRequest, Me, Plan,
-  AdminTenantCreateRequest, AdminTenantInviteRequest, PublicConfig, SignupRequest, SuspendStatus, SupportTicket, Subscription, Template, Tenant, TenantCreateRequest, TenantCreated,
+  AdminTenantCreateRequest, AdminTenantInviteRequest, PublicConfig, SignupRequest, SlugAvailability, SuspendStatus, SupportTicket, Subscription, Template, Tenant, TenantCreateRequest, TenantCreated,
 } from '@frappe-saaskit/client';
 import { useSaasClient } from './provider';
 import { saasKeys } from './keys';
@@ -18,6 +18,7 @@ export const usePublicConfig = () => { const c = useC(); return useQuery<PublicC
 export const useAdminTenants = (p?: { status?: Tenant['status']; owner_email?: string }) => { const c = useC(); return useQuery<Tenant[]>({ queryKey: [...saasKeys.adminTenants(), p ?? {}], queryFn: () => c.admin.tenants.list(p) }); };
 export const useMe = () => { const c = useC(); return useQuery<Me>({ queryKey: saasKeys.me(), queryFn: () => c.me.get() }); };
 export const useTenants = () => { const c = useC(); return useQuery<Tenant[]>({ queryKey: saasKeys.tenants(), queryFn: () => c.tenants.list() }); };
+export const useSlugAvailability = (slug: string) => { const c = useC(); return useQuery<SlugAvailability>({ queryKey: saasKeys.slugAvailability(slug), queryFn: () => c.tenants.checkSlug(slug), enabled: !!slug, staleTime: 10_000 }); };
 export const useTenant = (id: string) => { const c = useC(); return useQuery<Tenant>({ queryKey: saasKeys.tenant(id), queryFn: () => c.tenants.get(id), enabled: !!id }); };
 export const useSuspendStatus = (tenantId: string) => { const c = useC(); return useQuery<SuspendStatus>({ queryKey: saasKeys.suspendStatus(tenantId), queryFn: () => c.tenants.suspendStatus(tenantId), enabled: !!tenantId }); };
 export const useBackups = (tenantId: string) => { const c = useC(); return useQuery<Backup[]>({ queryKey: saasKeys.backups(tenantId), queryFn: () => c.backups.list(tenantId), enabled: !!tenantId }); };

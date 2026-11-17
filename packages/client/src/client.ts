@@ -49,6 +49,8 @@ export interface SaasClient {
   tenants: {
     list(p?: T.ListParams & { status?: T.TenantStatus }): Promise<T.Tenant[]>;
     listPage(p?: T.ListParams & { status?: T.TenantStatus }): Promise<T.Page<T.Tenant>>;
+    /** Is `<slug>.<site_domain>` free? (reason: invalid | reserved | taken; suggestion: free alternative) */
+    checkSlug(slug: string): Promise<T.SlugAvailability>;
     get(id: string): Promise<T.Tenant>;
     create(i: T.TenantCreateRequest): Promise<T.TenantCreated>;
     duplicate(id: string, i: { slug: string }): Promise<T.TenantCreated>;
@@ -126,6 +128,7 @@ export const createClient = (o: ClientOptions): SaasClient => {
     tenants: {
       list: (p) => items('tenants.list', p),
       listPage: (p) => page('tenants.list', p),
+      checkSlug: (slug) => get('tenants.slug_availability', { slug }),
       get: (id) => get('tenants.get', { tenant: id }),
       create: (i) => post('tenants.create', i),
       duplicate: (id, i) => post('tenants.duplicate', { tenant: id, ...i }),

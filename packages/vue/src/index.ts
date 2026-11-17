@@ -63,6 +63,7 @@ export const useRequestPasswordReset = () => { const c = useSaasClient(); return
 export const useConfirmPasswordReset = () => { const c = useSaasClient(); return mutation((i: { key: string; new_password: string }) => c.auth.confirmPasswordReset(i)); };
 
 export const useTenants = (p?: ListParams & { status?: TenantStatus }) => { const c = useSaasClient(); return query(() => c.tenants.list(p)); };
+export const useSlugAvailability = (slug: Id) => { const c = useSaasClient(); return idq(slug, (v) => c.tenants.checkSlug(v)); };
 export const useTenant = (id: Id) => { const c = useSaasClient(); return idq(id, (v) => c.tenants.get(v)); };
 export const useCreateTenant = () => { const c = useSaasClient(); return mutation((i: TenantCreateRequest) => c.tenants.create(i)); };
 export const useDuplicateTenant = () => { const c = useSaasClient(); return mutation((id: string, i: { slug: string }) => c.tenants.duplicate(id, i)); };
