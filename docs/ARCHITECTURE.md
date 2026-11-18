@@ -26,7 +26,7 @@ All calls go through `createHttp` in `client/src/http.ts`. URL shape is `<baseUr
 
 ![Request lifecycle: CSRF, auth and the error envelope](assets/request-lifecycle.svg)
 
-- **Auth modes** (`AuthStrategy`): `{ type: 'cookie' }` (browser; CSRF token comes from `Me.csrf_token` after `login`, `signup`, `me.get` or `me.update`), `{ type: 'apiKey', key, header? }` (`Authorization: token <key>` unless a custom header is set), `{ type: 'bearer', getToken }` (unsupported by saas_core v1.x, deprecated).
+- **Auth modes** (`AuthStrategy`): `{ type: 'cookie' }` (browser; CSRF token comes from `Me.csrf_token` after `login`, `signup`, `me.get` or `me.update`), `{ type: 'apiKey', key, header? }` (`Authorization: token <key>` unless a custom header is set).
 - **CSRF** is only attached for cookie auth on non-GET requests. Before the first mutation the client takes the token from the `csrfToken` option, `window.csrf_token`, or one single-flight `me` call; a `CsrfError` triggers one refresh and one replay.
 - **Envelope**: Frappe wraps whitelisted responses as `{ "message": <payload> }`; the client unwraps it. Errors carry `{ error: { code, message, field_errors, request_id, retry_after } }`, also unwrapped from `message` if needed; Frappe-native bodies (`exc_type`, `_server_messages`) are mapped too, and a non-JSON 2xx becomes `SaasError` (`non_json_response`).
 - **Error mapping** (`mapError`):

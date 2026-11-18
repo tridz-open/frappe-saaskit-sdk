@@ -1,7 +1,7 @@
 {
   "name": "@frappe-saaskit/node",
   "version": "0.1.0-alpha.2",
-  "description": "Node helpers (token loading, client factory) for @frappe-saaskit/client",
+  "description": "EXPERIMENTAL: Node helpers (token loading, client factory) for @frappe-saaskit/client",
   "license": "MIT",
   "author": "Tridz Technologies",
   "repository": {

@@ -166,13 +166,8 @@ export function createHttp(o: HttpOptions) {
   async function authHeaders(h: Headers): Promise<void> {
     const a: AuthStrategy | undefined = o.auth;
     if (!a || a.type === 'cookie') return;
-    if (a.type === 'apiKey') {
-      if (a.header) h.set(a.header, a.key);
-      else h.set('Authorization', `token ${a.key}`);
-      return;
-    }
-    const t = await a.getToken();
-    if (t) h.set('Authorization', `Bearer ${t}`);
+    if (a.header) h.set(a.header, a.key);
+    else h.set('Authorization', `token ${a.key}`);
   }
 
   async function raw(method: string, path: string, opts: RequestOptions, key?: string, extra?: Record<string, string>): Promise<Response> {

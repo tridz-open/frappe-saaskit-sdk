@@ -4,26 +4,23 @@ import { readFileSync, statSync } from 'node:fs';
 
 export interface NodeClientOptions extends Omit<ClientOptions, 'auth'> {
   /** Frappe API credentials as `key:secret` (User > API Access). Sent as `Authorization: token key:secret`. */
-  token: string | (() => string | Promise<string>);
-  /**
-   * `'token'` (default) sends `Authorization: token <token>`; the token must be a string.
-   * `'bearer'` sends `Authorization: Bearer <token>`.
-   * @deprecated bearer is not supported by saas_core v1.x
-   */
-  scheme?: 'token' | 'bearer';
+  token: string;
+}
+
+let noticed = false;
+function experimentalNotice(): void {
+  if (noticed) return;
+  noticed = true;
+  console.warn('[frappe-saaskit] @frappe-saaskit/node is EXPERIMENTAL: it has no consumers and API-key auth has not been verified against a live saas_core.');
 }
 
 /**
- * Client for agents/CLIs using Frappe API credentials. SSE in the client uses fetch (not EventSource),
+ * EXPERIMENTAL. Client for agents/CLIs using Frappe API credentials. SSE in the client uses fetch (not EventSource),
  * so subscribe() works on Node 20+ with no polyfill.
  */
-export function createNodeClient({ token, scheme = 'token', ...rest }: NodeClientOptions): SaasClient {
+export function createNodeClient({ token, ...rest }: NodeClientOptions): SaasClient {
+  experimentalNotice();
   if (!token) throw new Error('createNodeClient: token is required');
-  if (scheme === 'bearer') {
-    const getToken = typeof token === 'function' ? token : () => token;
-    return createClient({ ...rest, auth: { type: 'bearer', getToken } });
-  }
-  if (typeof token !== 'string') throw new Error('createNodeClient: a token function requires scheme: "bearer"');
   return createClient({ ...rest, auth: { type: 'apiKey', key: token } });
 }
 

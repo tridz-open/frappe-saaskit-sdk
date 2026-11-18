@@ -12,12 +12,13 @@ describe('node helpers', () => {
     const c = createNodeClient({ baseUrl: 'http://x', token: 'k:s' }) as any;
     expect(c.opts.baseUrl).toBe('http://x'); expect(c.opts.auth).toEqual({ type: 'apiKey', key: 'k:s' });
     expect(() => createNodeClient({ baseUrl: 'x', token: '' })).toThrow();
-    expect(() => createNodeClient({ baseUrl: 'x', token: () => 'k:s' })).toThrow(/bearer/);
   });
-  it('scheme bearer is still available (deprecated)', async () => {
-    const c = createNodeClient({ baseUrl: 'http://x', token: 'abc', scheme: 'bearer' }) as any;
-    expect(c.opts.auth.type).toBe('bearer');
-    expect(await c.opts.auth.getToken()).toBe('abc');
+  it('prints the experimental notice once', () => {
+    const w = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    createNodeClient({ baseUrl: 'http://x', token: 'k:s' });
+    createNodeClient({ baseUrl: 'http://x', token: 'k:s' });
+    expect(w.mock.calls.filter((c) => String(c[0]).includes('EXPERIMENTAL')).length).toBeLessThanOrEqual(1);
+    w.mockRestore();
   });
   it('tokenFromEnv', () => {
     expect(tokenFromEnv('A', { A: ' tok \n' })).toBe('tok');

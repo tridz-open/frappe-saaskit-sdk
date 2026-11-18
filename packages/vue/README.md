@@ -1,4 +1,6 @@
 # @frappe-saaskit/vue
+
+> **Experimental.** This package has no consumers yet and has not been verified against a live saas_core. It prints a one-time console notice. Expect breaking changes.
 Vue 3 composables (peer dep: `vue` only). Tenant ids are `Tenant.name`, job ids are `Job.name`.
 ```ts
 // app setup: app.provide(SAAS_CLIENT_KEY, client)   or in a component: provideSaas(client)

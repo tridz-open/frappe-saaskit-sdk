@@ -9,7 +9,7 @@ import { createClient, SaasError } from '@frappe-saaskit/client';
 
 const client = createClient({
   baseUrl: 'https://app.example.com',   // site origin; '' for same-origin
-  auth: { type: 'cookie' },             // or { type: 'apiKey', key: 'key:secret' } (bearer is unsupported)
+  auth: { type: 'cookie' },             // or { type: 'apiKey', key: 'key:secret' }
   retry: { retries: 3 },                // GETs, and POSTs that saas_core de-duplicates via Idempotency-Key
 });
 

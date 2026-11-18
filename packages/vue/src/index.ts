@@ -4,9 +4,16 @@ import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from '@frappe-saaskit/cli
 import type { AdminTenantCreateRequest, AdminTenantInviteRequest, SaasClient, Job, Tenant, TenantCreateRequest, CheckoutRequest, CreateTicketInput, SignupRequest, LoginRequest, BackupPart, ListParams, TenantStatus, ProfileUpdate, CreateTokenInput, TeamRole } from '@frappe-saaskit/client';
 
 export const SAAS_CLIENT_KEY: InjectionKey<SaasClient> = Symbol('saaskit-client');
-export function provideSaas(client: SaasClient): SaasClient { provide(SAAS_CLIENT_KEY, client); return client; }
+let noticed = false;
+function experimentalNotice(): void {
+  if (noticed) return;
+  noticed = true;
+  console.warn('[frappe-saaskit] @frappe-saaskit/vue is EXPERIMENTAL: it has no consumers and is only tested against mocked clients.');
+}
+export function provideSaas(client: SaasClient): SaasClient { experimentalNotice(); provide(SAAS_CLIENT_KEY, client); return client; }
 /** For app.runWithContext / createApp use: app.provide(SAAS_CLIENT_KEY, client). */
 export function useSaasClient(): SaasClient {
+  experimentalNotice();
   const c = inject(SAAS_CLIENT_KEY, null);
   if (!c) throw new Error('useSaasClient: no client provided; call provideSaas(client) in an ancestor');
   return c;
