@@ -263,8 +263,8 @@ The package map, request lifecycle and Razorpay checkout sequence are drawn in
 - **Idempotency** is not honoured by `admin.tenants.create` and `auth.login`, so they are never retried.
 - **Error envelope.** Some Frappe-native exceptions still return `exc_type`/`_server_messages`; the SDK maps both.
 - **CSRF for guests** relies on `auth.me` returning a `csrf_token`; if it fails the SDK proceeds without one.
-- **No public backend or contract target yet.** The opt-in contract test (`SAASCORE_URL=... pnpm test:contract`) needs a
-  reachable saas_core site.
+- **No public contract target.** saas_core is open source, but there is no hosted public site. The opt-in contract test
+  (`SAASCORE_URL=... pnpm test:contract`) needs a reachable saas_core site that you run yourself.
 - **ESM only**, no CommonJS build. The SDK only works against saas_core's v1 API.
 
 ## Contributing

@@ -1,8 +1,8 @@
 # @frappe-saaskit/client
 
-A typed client for the [saas_core](https://github.com/tridz-dev/saas_core) v1 API. It has no framework dependency and no runtime dependencies. It runs in browsers and in Node 20+.
+A typed client for the [saas_core](https://github.com/tridz-open/saas_core) v1 API. It has no framework dependency and no runtime dependencies. It runs in browsers and in Node 20+.
 
-> Alpha (0.1.0-alpha.1). Distributed as a GitHub release tarball; see the [repo README](../../README.md#install-alpha-tarballs) for install.
+> Alpha (0.1.0-alpha.3). Distributed as a GitHub release tarball; see the [repo README](../../README.md#install) for install.
 
 ```ts
 import { createClient, SaasError } from '@frappe-saaskit/client';

@@ -1,6 +1,6 @@
 # Vendored OpenAPI contract
 
-- Source: the saas_core backend (not public yet; the mock package is the way to try the SDK today)
+- Source: the saas_core backend (open source: https://github.com/tridz-open/saas_core)
 - Path: `openapi/v1.yaml`
 - Commit: 9a16328
 - `info.version`: 2.0.0-alpha.1
