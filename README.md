@@ -293,8 +293,8 @@ Open an issue on this repository.
 ## Related
 
 - **saas_core**: the backend Frappe app and source of the contract ([tridz-open/saas_core](https://github.com/tridz-open/saas_core)).
-- **fcctl**: a Python CLI and library for Frappe Cloud (sites, apps, backups, provisioning from a golden backup, with an approval gate for destructive operations). saas_core uses it to create customer sites ([tridz-open/fcctl](https://github.com/tridz-open/fcctl), currently private, coming soon).
-- **frappe-saaskit-starter**: a starter app built on this SDK (`tridz-open/frappe-saaskit-starter`, currently private, coming soon).
+- **fcctl**: a Python CLI and library for Frappe Cloud (sites, apps, backups, provisioning from a golden backup, with an approval gate for destructive operations). saas_core uses it to create customer sites ([tridz-open/fcctl](https://github.com/tridz-open/fcctl)).
+- **frappe-saaskit-starter**: a starter app built on this SDK ([tridz-open/frappe-saaskit-starter](https://github.com/tridz-open/frappe-saaskit-starter)).
 
 ## License
 
