@@ -46,7 +46,6 @@ Query hooks return `UseQueryResult<T>`; mutation hooks return `UseMutationResult
 | `useTenantLive` | `id` | query `Tenant` (live) | subscribes `{tenantId}`; events refetch; closes when status in `STABLE_TENANT_STATUSES` |
 | `useSuspendStatus` | `tenantId` | query `SuspendStatus` | |
 | `useCreateTenant` | - | mutation `{tenant, job}`, vars `TenantCreateRequest` | seeds tenant + job cache |
-| `useDuplicateTenant` | - | mutation `{tenant, job}`, vars `{ id, slug }` | seeds caches |
 | `useRequestDeleteTenant` | - | mutation `Job`, vars `{ id, confirm_slug, reason? }` | seeds job; `useDeleteTenant` is a deprecated alias |
 | `useChangePlan` | - | mutation `Job`, vars `{ id, plan }` | seeds job; invalidates tenant + subscription |
 | `useOpenLoginLink` | - | mutation `Link`, vars `tenantId` | |
@@ -55,8 +54,9 @@ Query hooks return `UseQueryResult<T>`; mutation hooks return `UseMutationResult
 | `useBackupDownloadLink` | - | mutation `Link`, vars `{ tenantId, backup, part }` | |
 | `useCheckout` | - | mutation `CheckoutSession`, vars `CheckoutRequest` | calls `checkout.createSession`; redirect yourself |
 | `useSubscription` | `tenantId` | query `Subscription` | |
-| `useCancelSubscription` | - | mutation `Subscription`, vars `{ tenantId, at_period_end?, reason? }` | |
-| `useSubscriptionPortalLink` | - | mutation `Link`, vars `{ tenantId, returnUrl? }` | |
+| `useCancelSubscription` | - | mutation `CancelResult`, vars `{ tenantId, reason? }` | `billing.cancel`; refunds unused days |
+| `usePreviewCancel` | - | mutation `CancelPreview`, vars `tenantId` | read-only: days used, refund, stop time |
+| `usePreviewChange` | - | mutation `ChangePreview`, vars `{ tenantId, plan }` | read-only prorated plan-change preview |
 | `usePaymentMethodsPortalLink` | - | mutation `Link`, vars `{ tenant?, return_url? } \| void` | |
 | `useInvoices` | `tenantId?` | query `Invoice[]` | |
 | `useInvoice` | `id` | query `Invoice` | |

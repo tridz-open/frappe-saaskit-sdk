@@ -6,7 +6,7 @@ import { createMockServer } from './node.js';
 const P = '/api/method/saas_core.api.v1.';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const mk = (o = {}) => {
-  const f = createMockFetch({ stepMs: 0, pingMs: 10, ...o });
+  const f = createMockFetch({ stepMs: 0, pingMs: 10, experimental: 'all', ...o });
   const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const isGet = method === 'GET';
     const q = isGet && body ? '?' + new URLSearchParams(body as Record<string, string>).toString() : '';
@@ -147,15 +147,18 @@ describe('tenants + jobs', () => {
     expect([...statuses]).toEqual(expect.arrayContaining(['provisioning', 'active']));
     f.reset();
   });
-  it('tenants.duplicate', async () => {
-    const { post, settle, get } = mk();
-    expect((await post('tenants.duplicate', { tenant: 'acme', slug: 'acme' })).status).toBe(409);
-    expect((await post('tenants.duplicate', { tenant: 'legacy-co', slug: 'copy-two' })).status).toBe(409);
-    const r = await post('tenants.duplicate', { tenant: 'acme', slug: 'acme-copy' });
-    expect(r.status).toBe(202);
-    expect(r.json.message.job.kind).toBe('duplicate');
-    await settle(r.json.message.job.name);
-    expect((await get('tenants.get', { tenant: 'acme-copy' })).json.message.status).toBe('active');
+  it('removed endpoints are 404', async () => {
+    const { post } = mk();
+    for (const n of ['tenants.duplicate', 'subscription.cancel', 'subscription.portal_link']) expect((await post(n, { tenant: 'acme' })).status).toBe(404);
+  });
+  it('experimental routes are 403 experimental_disabled by default and open when enabled', async () => {
+    const off = mk({ experimental: undefined });
+    for (const [m, n] of [['GET', 'api_tokens.list'], ['GET', 'tenants.team.list'], ['GET', 'support.tickets.list'], ['GET', 'events.stream'], ['POST', 'tenants.backups.restore'], ['POST', 'tenants.backups.download_link']] as const) {
+      const r = m === 'GET' ? await off.get(n, { tenant: 'acme' }) : await off.post(n, { tenant: 'acme' });
+      expect([n, r.status, r.json.error.code]).toEqual([n, 403, 'experimental_disabled']);
+    }
+    expect((await off.get('plans.list')).status).toBe(200);
+    expect((await mk({ experimental: ['api_tokens'] }).get('api_tokens.list')).status).toBe(200);
   });
   it('tenants.request_delete', async () => {
     const { post, get, settle } = mk();
@@ -232,15 +235,17 @@ describe('billing', () => {
     const t = (await get('tenants.get', { tenant: 'shop-one' })).json.message;
     await settle(t.active_job);
   });
-  it('subscription get / portal_link / cancel', async () => {
+  it('subscription get; billing preview_cancel / cancel / preview_change', async () => {
     const { get, post } = mk();
     expect((await get('subscription.get', { tenant: 'acme' })).json.message.status).toBe('active');
-    expect((await post('subscription.portal_link', { tenant: 'acme', return_url: 'https://a.test' })).json.message.url).toMatch(/^https:/);
-    const c = await post('subscription.cancel', { tenant: 'acme', at_period_end: true });
-    expect(c.json.message.cancel_at_period_end).toBe(true);
-    const c2 = await post('subscription.cancel', { tenant: 'acme', at_period_end: false });
-    expect(c2.json.message.status).toBe('canceled');
-    expect((await post('subscription.cancel', { tenant: 'acme' })).status).toBe(409);
+    const pv = (await get('billing.preview_cancel', { tenant: 'acme' })).json.message;
+    expect(pv.can_cancel).toBe(true);
+    const c = await post('billing.cancel', { tenant: 'acme', reason: 'x' });
+    expect(c.status).toBe(200);
+    expect(c.json.message.status).toBe('canceling');
+    expect((await post('billing.cancel', { tenant: 'acme' })).status).toBe(409);
+    const ch = (await get('billing.preview_change', { tenant: 'acme', plan: 'business' })).json.message;
+    expect(ch).toMatchObject({ from_plan: 'pro', to_plan: 'business', direction: 'upgrade' });
   });
   it('invoices list/get/pdf', async () => {
     const { get, f } = mk();
@@ -322,9 +327,9 @@ describe('events.stream (SSE)', () => {
     expect(new Set(seqs).size).toBe(seqs.length);
     expect(events.some((e) => e.type === 'job.step')).toBe(true);
     expect(events.every((e) => e.job === job)).toBe(true);
-    // tenant stream replays tenant.updated -> active
-    const t = await collect(f, 'tenant=live-one', (e) => e.type === 'tenant.updated' && (e.data as any).status === 'active');
-    expect(t.events.at(-1)!.type).toBe('tenant.updated');
+    // tenant stream carries the job events (no tenant.updated any more)
+    const t = await collect(f, 'tenant=live-one', (e) => e.type === 'job.updated' && (e.data as any).state === 'succeeded');
+    expect(t.events.every((e) => e.type !== ('tenant.updated' as string))).toBe(true);
     // since / Last-Event-ID replay
     const after = events[2]!.seq;
     const rep = await collect(f, `job=${job}&since=${after}`, (e) => e.type === 'job.updated' && (e.data as any).state === 'succeeded');

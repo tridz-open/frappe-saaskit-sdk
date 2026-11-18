@@ -1,12 +1,14 @@
 openapi: 3.1.0
 info:
   title: saas_core API
-  version: 1.4.1
+  version: 2.0.0-alpha.1
   license:
     name: MIT
   description: 'Generic SaaS control-plane API. Success responses are wrapped by Frappe as `{"message": <payload>}`; errors use the `Error` schema
     (saas_core installs an exception handler that emits it with the HTTP status). GET methods take query params, POST methods take a JSON body.
-    Mutations accept `Idempotency-Key`. Pagination is cursor-based (`cursor`, `limit` -> `next_cursor`). Additive changes only within v1.'
+    Mutations accept `Idempotency-Key`. Pagination is cursor-based (`cursor`, `limit` -> `next_cursor`). Alpha: the 2.0.0-alpha line removed tenants.duplicate,
+    subscription.cancel, subscription.portal_link and the Paddle gateway, and gates unverified operations behind site_config `saas_core_experimental`
+    (see docs/STATUS.md; those operations carry `x-experimental`).'
 servers:
 - url: https://{host}
   variables:
@@ -530,6 +532,155 @@ paths:
         default:
           $ref: '#/components/responses/Error'
       description: Requires the SaaS Admin role. Sends an owner invite for an existing tenant.
+  /api/method/saas_core.api.v1.admin.beta_access.list:
+    get:
+      operationId: adminBetaAccessList
+      summary: List beta-access allowlist entries with account status (System Manager only)
+      tags:
+      - admin
+      security:
+      - cookieAuth: []
+      - apiKey: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                properties:
+                  message:
+                    $ref: '#/components/schemas/BetaAccessList'
+        '401': *id003
+        '403': *id006
+        '429': *id002
+        default:
+          $ref: '#/components/responses/Error'
+      description: Requires the System Manager role (not SaaS Admin). Exact emails report whether the account exists, is verified and owns a tenant;
+        domain patterns report null for those.
+  /api/method/saas_core.api.v1.admin.beta_access.add:
+    post:
+      operationId: adminBetaAccessAdd
+      summary: Add emails or @domain patterns to the allowlist, optionally emailing invites (System Manager only)
+      tags:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BetaAccessAddRequest'
+      security:
+      - cookieAuth: []
+      - apiKey: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                properties:
+                  message:
+                    $ref: '#/components/schemas/BetaAccessAddResult'
+        '400': *id001
+        '401': *id003
+        '403': *id006
+        '422': *id004
+        '429': *id002
+        default:
+          $ref: '#/components/responses/Error'
+      description: Requires the System Manager role. Entries are comma/newline separated or a list, at most 200 per request. Invites are sent
+        only for exact emails.
+  /api/method/saas_core.api.v1.admin.beta_access.remove:
+    post:
+      operationId: adminBetaAccessRemove
+      summary: Remove an allowlist entry (System Manager only)
+      tags:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pattern
+              properties:
+                pattern:
+                  type: string
+      security:
+      - cookieAuth: []
+      - apiKey: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                properties:
+                  message:
+                    $ref: '#/components/schemas/BetaAccessRemoveResult'
+        '400': *id001
+        '401': *id003
+        '403': *id006
+        '429': *id002
+        default:
+          $ref: '#/components/responses/Error'
+      description: Requires the System Manager role.
+  /api/method/saas_core.api.v1.admin.beta_access.resend:
+    post:
+      operationId: adminBetaAccessResend
+      summary: Resend the beta invite email to an allowlisted address (System Manager only)
+      tags:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      security:
+      - cookieAuth: []
+      - apiKey: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                properties:
+                  message:
+                    $ref: '#/components/schemas/BetaAccessResendResult'
+        '400': *id001
+        '401': *id003
+        '403': *id006
+        '404': *id007
+        '422': *id004
+        '429': *id002
+        default:
+          $ref: '#/components/responses/Error'
+      description: Requires the System Manager role. 404 when the email is not on the allowlist.
   /api/method/saas_core.api.v1.me:
     get:
       operationId: me
@@ -712,54 +863,6 @@ paths:
         is a SaaS Admin/System Manager. Otherwise the tenant stays pending and the response carries `checkout_required: true`; complete `checkout.create_session`
         for the tenant. Non-public/unavailable plans and non-public templates (or templates whose `min_plan` exceeds the plan) are rejected with
         422 for customers.'
-  /api/method/saas_core.api.v1.tenants.duplicate:
-    post:
-      operationId: tenantsDuplicate
-      summary: Duplicate a tenant from its latest backup (SaaS Admin / System Manager only)
-      tags:
-      - tenants
-      parameters:
-      - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-              - tenant
-              - slug
-              properties:
-                tenant:
-                  type: string
-                slug:
-                  $ref: '#/components/schemas/Slug'
-      security:
-      - cookieAuth: []
-      - apiKey: []
-      - bearerAuth: []
-      responses:
-        '202':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - message
-                properties:
-                  message:
-                    $ref: '#/components/schemas/TenantCreated'
-        '400': *id001
-        '401': *id003
-        '403': *id006
-        '404': *id007
-        '409': *id005
-        '422': *id004
-        '429': *id002
-        default:
-          $ref: '#/components/responses/Error'
-      description: 'Operator-only: customers receive 403 `forbidden` because a copy provisions a paid site and has no checkout hook.'
   /api/method/saas_core.api.v1.tenants.request_delete:
     post:
       operationId: tenantsRequestDelete
@@ -1020,7 +1123,7 @@ paths:
   /api/method/saas_core.api.v1.tenants.backups.download_link:
     post:
       operationId: backupsDownloadLink
-      summary: Short-lived signed download link for one backup part
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=restore] Short-lived signed download link for one backup part'
       tags:
       - backups
       requestBody:
@@ -1067,10 +1170,12 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: restore
   /api/method/saas_core.api.v1.tenants.change_plan:
     post:
       operationId: tenantsChangePlan
-      summary: Upgrade/downgrade plan
+      summary: '[PARTLY EXPERIMENTAL] Upgrade is live-verified; downgrade (partial refund, scheduled switch) and the FC-side resize are EXPERIMENTAL.
+        Upgrade/downgrade plan'
       tags:
       - tenants
       parameters:
@@ -1114,6 +1219,7 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: downgrade
   /api/method/saas_core.api.v1.subscription.get:
     get:
       operationId: subscriptionGet
@@ -1149,26 +1255,18 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
-  /api/method/saas_core.api.v1.subscription.portal_link:
-    post:
-      operationId: subscriptionPortalLink
-      summary: Gateway billing-portal URL (manage cards, invoices)
+  /api/method/saas_core.api.v1.billing.preview_cancel:
+    get:
+      operationId: billingPreviewCancel
+      summary: 'Preview a day-based cancel: days used, charge, refund and when the site stops'
       tags:
       - billing
-      requestBody:
+      parameters:
+      - name: tenant
+        in: query
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-              - tenant
-              properties:
-                tenant:
-                  type: string
-                return_url:
-                  type: string
-                  format: uri
+        schema:
+          type: string
       security:
       - cookieAuth: []
       - apiKey: []
@@ -1184,7 +1282,7 @@ paths:
                 - message
                 properties:
                   message:
-                    $ref: '#/components/schemas/PortalLink'
+                    $ref: '#/components/schemas/CancelPreview'
         '400': *id001
         '401': *id003
         '403': *id006
@@ -1192,10 +1290,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
-  /api/method/saas_core.api.v1.subscription.cancel:
+      description: Billed monthly in advance. If you cancel, we charge up to the end of that day and refund the unused days. Read-only.
+  /api/method/saas_core.api.v1.billing.cancel:
     post:
-      operationId: subscriptionCancel
-      summary: Cancel at period end (or immediately)
+      operationId: billingCancel
+      summary: 'Cancel now: site stays active to the end of today (IST), unused days are refunded to the original payment method'
       tags:
       - billing
       parameters:
@@ -1211,11 +1310,9 @@ paths:
               properties:
                 tenant:
                   type: string
-                at_period_end:
-                  type: boolean
-                  default: true
                 reason:
                   type: string
+                  maxLength: 500
       security:
       - cookieAuth: []
       - apiKey: []
@@ -1231,15 +1328,60 @@ paths:
                 - message
                 properties:
                   message:
-                    $ref: '#/components/schemas/Subscription'
+                    $ref: '#/components/schemas/CancelResult'
+        '400': *id001
+        '401': *id003
+        '404': *id007
+        '409': *id005
+        '422': *id004
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '429': *id002
+        default:
+          $ref: '#/components/responses/Error'
+      description: '409 codes: `already_canceling`, `plan_change_pending`, `plan_change_pending_payment`. 502 `gateway_error`: nothing was changed,
+        retry. If only the refund fails the cancel still succeeds and the refund is retried automatically.'
+  /api/method/saas_core.api.v1.billing.preview_change:
+    get:
+      operationId: billingPreviewChange
+      summary: Preview a prorated plan change (applies from the start of the next IST day)
+      tags:
+      - billing
+      parameters:
+      - name: tenant
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: plan
+        in: query
+        required: true
+        schema:
+          type: string
+      security:
+      - cookieAuth: []
+      - apiKey: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                properties:
+                  message:
+                    $ref: '#/components/schemas/ChangePreview'
         '400': *id001
         '401': *id003
         '403': *id006
         '404': *id007
-        '409': *id005
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      description: Read-only. Apply with tenants.change_plan.
   /api/method/saas_core.api.v1.invoices.list:
     get:
       operationId: invoicesList
@@ -1327,7 +1469,7 @@ paths:
   /api/method/saas_core.api.v1.invoices.pdf:
     get:
       operationId: invoicesPdf
-      summary: Invoice PDF (redirect to signed URL or stream)
+      summary: 'Invoice PDF link. saas_core does not generate PDFs: redirects to the gateway-hosted payment URL when one exists, else 404 `not_available`'
       tags:
       - billing
       parameters:
@@ -1358,7 +1500,7 @@ paths:
   /api/method/saas_core.api.v1.payment_methods.portal_link:
     post:
       operationId: paymentMethodsPortalLink
-      summary: Gateway portal link to add/update payment methods (cards are never handled by saas_core)
+      summary: 'Gateway portal link to add/update payment methods (EXPERIMENTAL: Razorpay has no portal and returns return_url; Stripe is experimental)'
       tags:
       - billing
       requestBody:
@@ -1482,7 +1624,7 @@ paths:
   /api/method/saas_core.api.v1.support.tickets.list:
     get:
       operationId: ticketsList
-      summary: List my tickets
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=support] List my tickets'
       tags:
       - support
       parameters:
@@ -1523,10 +1665,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: support
   /api/method/saas_core.api.v1.support.tickets.get:
     get:
       operationId: ticketsGet
-      summary: Get a ticket with replies
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=support] Get a ticket with replies'
       tags:
       - support
       parameters:
@@ -1558,10 +1701,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: support
   /api/method/saas_core.api.v1.support.tickets.create:
     post:
       operationId: ticketsCreate
-      summary: Open a ticket
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=support] Open a ticket'
       tags:
       - support
       parameters:
@@ -1611,10 +1755,12 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+        '403': *id006
+      x-experimental: support
   /api/method/saas_core.api.v1.support.tickets.reply:
     post:
       operationId: ticketsReply
-      summary: Reply to a ticket
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=support] Reply to a ticket'
       tags:
       - support
       requestBody:
@@ -1654,10 +1800,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: support
   /api/method/saas_core.api.v1.support.tickets.close:
     post:
       operationId: ticketsClose
-      summary: Close a ticket (owner only)
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=support] Close a ticket (owner only)'
       tags:
       - support
       requestBody:
@@ -1693,6 +1840,8 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+        '403': *id006
+      x-experimental: support
   /api/method/saas_core.api.v1.me.update:
     post:
       operationId: meUpdate
@@ -1742,7 +1891,7 @@ paths:
   /api/method/saas_core.api.v1.api_tokens.list:
     get:
       operationId: apiTokensList
-      summary: List my API tokens (secret never returned)
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=api_tokens] List my API tokens (secret never returned)'
       tags:
       - tokens
       parameters:
@@ -1780,10 +1929,12 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+        '403': *id006
+      x-experimental: api_tokens
   /api/method/saas_core.api.v1.api_tokens.create:
     post:
       operationId: apiTokensCreate
-      summary: Create an API token; the secret is returned once only
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=api_tokens] Create an API token; the secret is returned once only'
       tags:
       - tokens
       parameters:
@@ -1831,6 +1982,7 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: api_tokens
   /api/method/saas_core.api.v1.api_tokens.revoke:
     post:
       operationId: apiTokensRevoke
@@ -1865,7 +2017,7 @@ paths:
   /api/method/saas_core.api.v1.tenants.team.list:
     get:
       operationId: teamList
-      summary: List team members and pending invites
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] List team members and pending invites'
       tags:
       - team
       parameters:
@@ -1911,10 +2063,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: team
   /api/method/saas_core.api.v1.tenants.team.invite:
     post:
       operationId: teamInvite
-      summary: Invite a member by email
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] Invite a member by email'
       tags:
       - team
       parameters:
@@ -1962,10 +2115,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: team
   /api/method/saas_core.api.v1.tenants.team.revoke_invite:
     post:
       operationId: teamRevokeInvite
-      summary: Revoke a pending invite
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] Revoke a pending invite'
       tags:
       - team
       requestBody:
@@ -1996,10 +2150,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: team
   /api/method/saas_core.api.v1.tenants.team.change_role:
     post:
       operationId: teamChangeRole
-      summary: Change a member's role
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] Change a member''s role'
       tags:
       - team
       requestBody:
@@ -2044,10 +2199,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: team
   /api/method/saas_core.api.v1.tenants.team.remove:
     post:
       operationId: teamRemove
-      summary: Remove a member
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] Remove a member'
       tags:
       - team
       requestBody:
@@ -2079,10 +2235,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: team
   /api/method/saas_core.api.v1.team.accept_invite:
     post:
       operationId: teamAcceptInvite
-      summary: Accept an emailed invite with its token
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=team] Accept an emailed invite with its token'
       tags:
       - team
       requestBody:
@@ -2120,10 +2277,12 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+        '403': *id006
+      x-experimental: team
   /api/method/saas_core.api.v1.tenants.backups.restore:
     post:
       operationId: backupsRestore
-      summary: 'Restore a backup (guarded: returns a pending approval request)'
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=restore] Restore a backup (guarded: returns a pending approval request)'
       tags:
       - backups
       parameters:
@@ -2166,10 +2325,11 @@ paths:
         '429': *id002
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: restore
   /api/method/saas_core.api.v1.events.stream:
     get:
       operationId: eventsStream
-      summary: Server-Sent Events stream of job/tenant/subscription state changes
+      summary: '[EXPERIMENTAL, requires saas_core_experimental=sse] Server-Sent Events stream of job/tenant/subscription state changes'
       tags:
       - events
       description: 'text/event-stream. Each event: `id: <seq>`, `event: <EventType>`, `data: <Event JSON>`. Heartbeat comment `:hb` every 15s.
@@ -2209,6 +2369,7 @@ paths:
         '403': *id006
         default:
           $ref: '#/components/responses/Error'
+      x-experimental: sse
   /api/method/saas_core.webhooks.razorpay:
     post:
       operationId: webhookRazorpay
@@ -2244,39 +2405,8 @@ paths:
   /api/method/saas_core.webhooks.stripe:
     post:
       operationId: webhookStripe
-      summary: Stripe webhook receiver (signature verified, raw payload stored, idempotent by gateway event id, enqueued, 200 fast)
-      tags:
-      - webhooks
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        '200':
-          description: Accepted (also returned for duplicate events)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum:
-                    - accepted
-                    - duplicate
-                    - ignored
-        '400':
-          description: Bad payload
-        '401':
-          description: Invalid signature
-  /api/method/saas_core.webhooks.paddle:
-    post:
-      operationId: webhookPaddle
-      summary: Paddle webhook receiver (signature verified, raw payload stored, idempotent by gateway event id, enqueued, 200 fast)
+      summary: 'Stripe (EXPERIMENTAL: requires saas_core_experimental=stripe) webhook receiver (signature verified, raw payload stored, idempotent
+        by gateway event id, enqueued, 200 fast)'
       tags:
       - webhooks
       security: []
@@ -2386,6 +2516,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: Payment provider unavailable; nothing was changed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     ServiceUnavailable:
       description: Capacity exhausted (error.code capacity_exhausted)
       content:
@@ -2429,7 +2565,7 @@ components:
       - change_plan
       - terminate
       - backup
-      - duplicate
+      - restore
     JobState:
       type: string
       enum:
@@ -2454,7 +2590,6 @@ components:
       enum:
       - razorpay
       - stripe
-      - paddle
     Money:
       type: object
       required:
@@ -2808,7 +2943,6 @@ components:
           enum:
           - razorpay
           - stripe
-          - paddle
           - manual
         payload:
           type: object
@@ -3018,6 +3152,181 @@ components:
           - string
           - 'null'
           format: date-time
+    RefundSummary:
+      type: object
+      required:
+      - id
+      - status
+      - amount_minor
+      - currency
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - processed
+          - failed
+        amount_minor:
+          type: integer
+          description: minor units
+        currency:
+          type: string
+    CancelPreview:
+      type: object
+      required:
+      - tenant
+      - can_cancel
+      - refund_minor
+      - stops_at
+      properties:
+        tenant: &id009
+          type: string
+        subscription: &id010
+          type:
+          - string
+          - 'null'
+        plan: &id011
+          type:
+          - string
+          - 'null'
+        plan_label: &id012
+          type: string
+        currency: &id013
+          type: string
+        can_cancel: &id014
+          type: boolean
+        blocked_reason: &id015
+          type:
+          - string
+          - 'null'
+          enum:
+          - already_canceling
+          - plan_change_pending
+          - plan_change_pending_payment
+          - null
+        cycle_start: &id016
+          type:
+          - string
+          - 'null'
+          format: date
+        cycle_end: &id017
+          type:
+          - string
+          - 'null'
+          format: date
+        cycle_days: &id018
+          type: integer
+        days_used: &id019
+          type: integer
+        days_unused: &id020
+          type: integer
+        paid_minor: &id021
+          type: integer
+        charge_minor: &id022
+          type: integer
+        refund_minor: &id023
+          type: integer
+        stops_at: &id024
+          type: string
+          format: date-time
+          description: End of the current IST day (UTC)
+        timezone: &id025
+          type: string
+          example: Asia/Kolkata
+        refund_to: &id026
+          type: string
+          example: original payment method
+        renewal_date: &id027
+          type:
+          - string
+          - 'null'
+          format: date
+    CancelResult:
+      type: object
+      required:
+      - tenant
+      - status
+      - refund_minor
+      - stops_at
+      - refund
+      properties:
+        tenant: *id009
+        subscription: *id010
+        plan: *id011
+        plan_label: *id012
+        currency: *id013
+        can_cancel: *id014
+        blocked_reason: *id015
+        cycle_start: *id016
+        cycle_end: *id017
+        cycle_days: *id018
+        days_used: *id019
+        days_unused: *id020
+        paid_minor: *id021
+        charge_minor: *id022
+        refund_minor: *id023
+        stops_at: *id024
+        timezone: *id025
+        refund_to: *id026
+        renewal_date: *id027
+        status:
+          type: string
+          enum:
+          - canceling
+        refund:
+          oneOf:
+          - $ref: '#/components/schemas/RefundSummary'
+          - type: 'null'
+    ChangePreview:
+      type: object
+      required:
+      - tenant
+      - from_plan
+      - to_plan
+      - direction
+      - effective_at
+      properties:
+        tenant:
+          type: string
+        from_plan:
+          type: string
+        to_plan:
+          type: string
+        direction:
+          type: string
+          enum:
+          - upgrade
+          - downgrade
+          - same
+        effective_at:
+          type: string
+          format: date-time
+        effective_date:
+          type: string
+          format: date
+        days_remaining:
+          type: integer
+        cycle_days:
+          type: integer
+        currency:
+          type: string
+        amount_due_minor:
+          type: integer
+        credit_minor:
+          type: integer
+        new_cycle_price_minor:
+          type: integer
+        renewal_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        payment_required:
+          type: boolean
+        timezone:
+          type: string
     Invoice:
       type: object
       required:
@@ -3185,9 +3494,7 @@ components:
       enum:
       - job.updated
       - job.step
-      - tenant.updated
       - subscription.updated
-      - invoice.created
       - resync
     ApiToken:
       type: object
@@ -3289,14 +3596,14 @@ components:
       - at
       - data
       properties:
-        seq: &id009
+        seq: &id028
           type: integer
-        at: &id010
+        at: &id029
           type: string
           format: date-time
-        tenant: &id011
+        tenant: &id030
           type: string
-        job: &id012
+        job: &id031
           type: string
         type:
           type: string
@@ -3304,24 +3611,6 @@ components:
           - job.updated
         data:
           $ref: '#/components/schemas/Job'
-    EventTenantUpdated:
-      type: object
-      required:
-      - seq
-      - type
-      - at
-      - data
-      properties:
-        seq: *id009
-        at: *id010
-        tenant: *id011
-        job: *id012
-        type:
-          type: string
-          enum:
-          - tenant.updated
-        data:
-          $ref: '#/components/schemas/Tenant'
     EventSubscriptionUpdated:
       type: object
       required:
@@ -3330,10 +3619,10 @@ components:
       - at
       - data
       properties:
-        seq: *id009
-        at: *id010
-        tenant: *id011
-        job: *id012
+        seq: *id028
+        at: *id029
+        tenant: *id030
+        job: *id031
         type:
           type: string
           enum:
@@ -3348,34 +3637,16 @@ components:
       - at
       - data
       properties:
-        seq: *id009
-        at: *id010
-        tenant: *id011
-        job: *id012
+        seq: *id028
+        at: *id029
+        tenant: *id030
+        job: *id031
         type:
           type: string
           enum:
           - job.step
         data:
           $ref: '#/components/schemas/JobStep'
-    EventInvoiceCreated:
-      type: object
-      required:
-      - seq
-      - type
-      - at
-      - data
-      properties:
-        seq: *id009
-        at: *id010
-        tenant: *id011
-        job: *id012
-        type:
-          type: string
-          enum:
-          - invoice.created
-        data:
-          $ref: '#/components/schemas/Invoice'
     EventResync:
       type: object
       required:
@@ -3383,10 +3654,10 @@ components:
       - type
       - at
       properties:
-        seq: *id009
-        at: *id010
-        tenant: *id011
-        job: *id012
+        seq: *id028
+        at: *id029
+        tenant: *id030
+        job: *id031
         type:
           type: string
           enum:
@@ -3397,20 +3668,123 @@ components:
     Event:
       oneOf:
       - $ref: '#/components/schemas/EventJobUpdated'
-      - $ref: '#/components/schemas/EventTenantUpdated'
       - $ref: '#/components/schemas/EventSubscriptionUpdated'
       - $ref: '#/components/schemas/EventJobStep'
-      - $ref: '#/components/schemas/EventInvoiceCreated'
       - $ref: '#/components/schemas/EventResync'
       discriminator:
         propertyName: type
         mapping:
           job.updated: '#/components/schemas/EventJobUpdated'
-          tenant.updated: '#/components/schemas/EventTenantUpdated'
           subscription.updated: '#/components/schemas/EventSubscriptionUpdated'
           job.step: '#/components/schemas/EventJobStep'
-          invoice.created: '#/components/schemas/EventInvoiceCreated'
           resync: '#/components/schemas/EventResync'
+    BetaAccessEntry:
+      type: object
+      required:
+      - pattern
+      - kind
+      properties:
+        pattern:
+          type: string
+        kind:
+          type: string
+          enum:
+          - email
+          - domain
+        note:
+          type:
+          - string
+          - 'null'
+        invited_at:
+          type:
+          - string
+          - 'null'
+        account_exists:
+          type:
+          - boolean
+          - 'null'
+        verified:
+          type:
+          - boolean
+          - 'null'
+        has_tenant:
+          type:
+          - boolean
+          - 'null'
+    BetaAccessList:
+      type: object
+      required:
+      - signup_mode
+      - patterns
+      properties:
+        signup_mode:
+          type: string
+        patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/BetaAccessEntry'
+    BetaAccessAddRequest:
+      type: object
+      required:
+      - entries
+      properties:
+        entries:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+        send_invite:
+          type: boolean
+          default: false
+        note:
+          type: string
+    BetaAccessAddResult:
+      type: object
+      required:
+      - added
+      - already_listed
+      - invites_sent
+      - invites_failed
+      - skipped_domains
+      properties:
+        added:
+          type: array
+          items:
+            type: string
+        already_listed:
+          type: array
+          items:
+            type: string
+        invites_sent:
+          type: array
+          items:
+            type: string
+        invites_failed:
+          type: array
+          items:
+            type: string
+        skipped_domains:
+          type: array
+          items:
+            type: string
+    BetaAccessRemoveResult:
+      type: object
+      required:
+      - removed
+      properties:
+        removed:
+          type: string
+    BetaAccessResendResult:
+      type: object
+      required:
+      - email
+      - sent
+      properties:
+        email:
+          type: string
+        sent:
+          type: boolean
     Error:
       type: object
       required:

@@ -4,7 +4,7 @@ import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from '@frappe-saaskit/cli
 import type {
   ApiToken, ApiTokenCreated, CreateTokenInput, ProfileUpdate, RestoreApproval, TeamMember, TeamRole,
   Backup, BackupPart, CheckoutRequest, CheckoutSession, CreateTicketInput, Invoice, Job, Link, LoginRequest, Me, Plan,
-  AdminTenantCreateRequest, AdminTenantInviteRequest, PublicConfig, SignupRequest, SlugAvailability, SuspendStatus, SupportTicket, Subscription, Template, Tenant, TenantCreateRequest, TenantCreated,
+  AdminTenantCreateRequest, AdminTenantInviteRequest, PublicConfig, SignupRequest, SlugAvailability, SuspendStatus, SupportTicket, Subscription, CancelResult, CancelPreview, ChangePreview, Template, Tenant, TenantCreateRequest, TenantCreated,
 } from '@frappe-saaskit/client';
 import { useSaasClient } from './provider';
 import { saasKeys } from './keys';
@@ -122,13 +122,6 @@ export function useCreateTenant() {
     onSuccess: (r) => { seedCreated(qc, r); return qc.invalidateQueries({ queryKey: saasKeys.tenants() }); },
   });
 }
-export function useDuplicateTenant() {
-  const c = useC(); const qc = useQueryClient();
-  return useMutation<TenantCreated, Error, { id: string; slug: string }>({
-    mutationFn: ({ id, slug }) => c.tenants.duplicate(id, { slug }),
-    onSuccess: (r) => { seedCreated(qc, r); return qc.invalidateQueries({ queryKey: saasKeys.tenants() }); },
-  });
-}
 export function useRequestDeleteTenant() {
   const c = useC(); const qc = useQueryClient();
   return useMutation<Job, Error, { id: string; confirm_slug: string; reason?: string }>({
@@ -173,14 +166,19 @@ export function useCheckout() {
     onSuccess: () => qc.invalidateQueries({ queryKey: saasKeys.subscriptions() }),
   });
 }
+/** Cancel now (day-based billing). Replaces the removed subscription.cancel. Call `usePreviewCancel` first to show the refund. */
 export function useCancelSubscription() {
   const c = useC(); const qc = useQueryClient();
-  return useMutation<Subscription, Error, { tenantId: string; at_period_end?: boolean; reason?: string }>({
-    mutationFn: ({ tenantId, ...i }) => c.subscription.cancel(tenantId, i),
-    onSuccess: (s, v) => { qc.setQueryData(saasKeys.subscription(v.tenantId), s); return qc.invalidateQueries({ queryKey: saasKeys.invoices() }); },
+  return useMutation<CancelResult, Error, { tenantId: string; reason?: string }>({
+    mutationFn: ({ tenantId, ...i }) => c.billing.cancel(tenantId, i),
+    onSuccess: (_r, v) => Promise.all([
+      qc.invalidateQueries({ queryKey: saasKeys.subscription(v.tenantId) }),
+      qc.invalidateQueries({ queryKey: saasKeys.invoices() }),
+    ]),
   });
 }
-export const useSubscriptionPortalLink = () => { const c = useC(); return useMutation<Link, Error, { tenantId: string; returnUrl?: string }>({ mutationFn: (v) => c.subscription.portalLink(v.tenantId, v.returnUrl) }); };
+export const usePreviewCancel = () => { const c = useC(); return useMutation<CancelPreview, Error, string>({ mutationFn: (tenantId) => c.billing.previewCancel(tenantId) }); };
+export const usePreviewChange = () => { const c = useC(); return useMutation<ChangePreview, Error, { tenantId: string; plan: string }>({ mutationFn: (v) => c.billing.previewChange(v.tenantId, v.plan) }); };
 export const usePaymentMethodsPortalLink = () => { const c = useC(); return useMutation<Link, Error, { tenant?: string; return_url?: string } | void>({ mutationFn: (i) => c.paymentMethods.portalLink(i ?? undefined) }); };
 export const useInvoicePdf = () => { const c = useC(); return useMutation<Blob, Error, string>({ mutationFn: (id) => c.invoices.pdf(id) }); };
 
@@ -230,7 +228,7 @@ export function useTenantLive(id: string) {
   useEffect(() => {
     if (!id || stable) return;
     const sub = c.subscribe({ tenantId: id }, (e) => {
-      if (e.type === 'tenant.updated' || e.type === 'job.updated' || e.type === 'resync') void qc.invalidateQueries({ queryKey: saasKeys.tenant(id) });
+      if (e.type === 'tenant.updated' || e.type === 'job.updated' || e.type === 'subscription.updated' || e.type === 'resync') void qc.invalidateQueries({ queryKey: saasKeys.tenant(id) });
     });
     return () => sub.close();
   }, [c, qc, id, stable]);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createClient, AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, RateLimitError, ServerError, NetworkError } from '../src/index';
+import { createClient, AuthError, ExperimentalDisabledError, ForbiddenError, NotFoundError, ValidationError, ConflictError, RateLimitError, ServerError, NetworkError } from '../src/index';
 import { createSseParser } from '../src/sse';
 
 const P = 'http://x/api/method/saas_core.api.v1.';
@@ -66,6 +66,20 @@ describe('errors', () => {
     const e = await mk(f).me.get().catch((x) => x);
     expect(e).toBeInstanceOf(ForbiddenError);
     expect(e).toMatchObject({ status: 403, code: 'signup_disabled', message: 'Signup is currently closed' });
+  });
+  it('maps 403 experimental_disabled to ExperimentalDisabledError (a ForbiddenError)', async () => {
+    const f = vi.fn(async () => err(403, { code: 'experimental_disabled', message: 'disabled' }));
+    const e = await mk(f).apiTokens.list().catch((x) => x);
+    expect(e).toBeInstanceOf(ExperimentalDisabledError);
+    expect(e).toBeInstanceOf(ForbiddenError);
+    expect(e).toMatchObject({ status: 403, code: 'experimental_disabled' });
+  });
+  it('falls back to polling right away when the SSE stream is experimental_disabled', async () => {
+    const f = vi.fn(async (url: string) => (url.includes('events.stream') ? err(403, { code: 'experimental_disabled', message: 'x' }) : ok({ name: 'j1', state: 'succeeded' })));
+    const evs: any[] = [];
+    mk(f, { pollIntervalMs: 5 }).subscribe({ jobId: 'j1' }, (e) => evs.push(e));
+    await vi.waitFor(() => expect(evs.length).toBe(1));
+    expect(f.mock.calls.filter((c: any) => c[0].includes('events.stream')).length).toBe(1);
   });
   it('429 with Retry-After retries then throws', async () => {
     const f = vi.fn(async () => err(429, { message: 'slow' }, { 'Retry-After': '0' }));
@@ -137,7 +151,7 @@ describe('methods', () => {
     expect(await c.tenants.listPage()).toEqual({ items: [{ name: 't1' }], next_cursor: 'n' });
   });
 
-  it('tenants.get, suspendStatus, openLoginLink, requestDelete, duplicate, changePlan', async () => {
+  it('tenants.get, suspendStatus, openLoginLink, requestDelete, changePlan', async () => {
     const { f, c } = setup({ x: 1 });
     await c.tenants.get('t1');
     expect(call(f, 0).url).toBe(`${P}tenants.get?tenant=t1`);
@@ -149,12 +163,9 @@ describe('methods', () => {
     await c.tenants.requestDelete('t1', { confirm_slug: 's', reason: 'r' });
     expect(call(f, 3).url).toBe(`${P}tenants.request_delete`);
     expect(bodyOf(f, 3)).toEqual({ tenant: 't1', confirm_slug: 's', reason: 'r' });
-    await c.tenants.duplicate('t1', { slug: 'copy' });
-    expect(call(f, 4).url).toBe(`${P}tenants.duplicate`);
-    expect(bodyOf(f, 4)).toEqual({ tenant: 't1', slug: 'copy' });
     await c.tenants.changePlan('t1', 'pro');
-    expect(call(f, 5).url).toBe(`${P}tenants.change_plan`);
-    expect(bodyOf(f, 5)).toEqual({ tenant: 't1', plan: 'pro' });
+    expect(call(f, 4).url).toBe(`${P}tenants.change_plan`);
+    expect(bodyOf(f, 4)).toEqual({ tenant: 't1', plan: 'pro' });
   });
 
   it('backups list/create/downloadLink', async () => {
@@ -184,16 +195,18 @@ describe('methods', () => {
     expect(r.status).toBe('ok');
   });
 
-  it('subscription get/portalLink/cancel', async () => {
+  it('subscription get and billing preview/cancel/previewChange', async () => {
     const { f, c } = setup({ url: 'u' });
     await c.subscription.get('t1');
     expect(call(f, 0).url).toBe(`${P}subscription.get?tenant=t1`);
-    await c.subscription.portalLink('t1', 'http://ret');
-    expect(call(f, 1).url).toBe(`${P}subscription.portal_link`);
-    expect(bodyOf(f, 1)).toEqual({ tenant: 't1', return_url: 'http://ret' });
-    await c.subscription.cancel('t1', { at_period_end: true, reason: 'r' });
-    expect(call(f, 2).url).toBe(`${P}subscription.cancel`);
-    expect(bodyOf(f, 2)).toEqual({ tenant: 't1', at_period_end: true, reason: 'r' });
+    await c.billing.previewCancel('t1');
+    expect(call(f, 1).url).toBe(`${P}billing.preview_cancel?tenant=t1`);
+    await c.billing.cancel('t1', { reason: 'r' });
+    expect(call(f, 2).url).toBe(`${P}billing.cancel`);
+    expect(bodyOf(f, 2)).toEqual({ tenant: 't1', reason: 'r' });
+    expect(call(f, 2).init.headers.get('Idempotency-Key')).toBeTruthy();
+    await c.billing.previewChange('t1', 'pro');
+    expect(call(f, 3).url).toBe(`${P}billing.preview_change?tenant=t1&plan=pro`);
   });
 
   it('invoices list/get/pdf', async () => {

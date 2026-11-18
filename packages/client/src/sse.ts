@@ -2,6 +2,7 @@ import type { Http } from './http';
 import { backoff, sleep } from './http';
 import type { RetryOptions, Subscription } from './client';
 import type { SaasEvent, Job, Tenant } from './types';
+import { ExperimentalDisabledError } from './errors';
 import { TERMINAL_JOB_STATES, STABLE_TENANT_STATUSES } from './types';
 
 /** Incremental text/event-stream parser. */
@@ -44,8 +45,8 @@ export function subscribe(
   let closed = false;
 
   const terminal = (e: SaasEvent) =>
-    (isJob && e.type === 'job.updated' && TERMINAL_JOB_STATES.includes(e.data.state)) ||
-    (!isJob && e.type === 'tenant.updated' && STABLE_TENANT_STATUSES.includes(e.data.status));
+    (e.type === 'job.updated' && TERMINAL_JOB_STATES.includes(e.data.state)) ||
+    (!isJob && e.type === 'tenant.updated' && STABLE_TENANT_STATUSES.includes(e.data.status)); // tenant.updated: polling fallback only
   let lastId: string | undefined;
   const emit = (e: SaasEvent) => { if (!closed) onEvent(e); return terminal(e); };
 
@@ -99,6 +100,7 @@ export function subscribe(
       } catch (e) {
         if (closed) return;
         onError?.(e);
+        if (e instanceof ExperimentalDisabledError) break; // SSE is off on this site: go straight to polling
         failures++;
         if (failures <= maxReconnects) await sleep(backoff(failures - 1, cfg.retry));
       }

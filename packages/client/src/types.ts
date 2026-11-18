@@ -69,12 +69,18 @@ export type JobStep = S['JobStep'];
 export type Job = S['Job'];
 export type SupportTicket = S['SupportTicket'];
 export type EventType = S['EventType'];
-export type SaasEvent = S['Event'];
+/**
+ * Synthesized by the client's polling fallback for `{ tenantId }` subscriptions only. saas_core's stream no longer
+ * emits `tenant.updated`.
+ */
+export interface TenantUpdatedEvent { seq: number; type: 'tenant.updated'; at: string; tenant?: string; job?: string; data: Tenant }
+export type SaasEvent = S['Event'] | TenantUpdatedEvent;
+export type CancelPreview = S['CancelPreview'];
+export type CancelResult = S['CancelResult'];
+export type ChangePreview = S['ChangePreview'];
 export type JobUpdatedEvent = S['EventJobUpdated'];
-export type TenantUpdatedEvent = S['EventTenantUpdated'];
 export type SubscriptionUpdatedEvent = S['EventSubscriptionUpdated'];
 export type JobStepEvent = S['EventJobStep'];
-export type InvoiceCreatedEvent = S['EventInvoiceCreated'];
 export type ResyncEvent = S['EventResync'];
 export type ApiToken = S['ApiToken'];
 export type ApiTokenCreated = S['ApiTokenCreated'];
