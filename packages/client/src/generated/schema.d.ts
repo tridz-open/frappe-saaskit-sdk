@@ -1124,6 +1124,8 @@ export interface components {
             roles?: string[];
             tenant_count?: number;
             csrf_token?: string;
+            /** @description true when the account email is verified or verification is not required by the signup mode */
+            email_verified?: boolean;
         };
         CheckoutRequest: {
             /** @description existing tenant (change/resume) else created from slug */
@@ -1323,6 +1325,10 @@ export interface components {
             /** Format: date-time */
             finished_at?: string | null;
             message?: string | null;
+            /** @description alias of name */
+            key?: string;
+            /** @description alias of state */
+            status?: string;
         };
         Job: {
             name: string;
@@ -1339,6 +1345,11 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             finished_at?: string | null;
+            /**
+             * Format: date-time
+             * @description first step start, else job creation
+             */
+            started_at?: string | null;
         };
         SupportTicket: {
             name: string;

@@ -64,6 +64,15 @@ export interface SaasClient {
       create(i: T.AdminTenantCreateRequest): Promise<T.TenantCreated>;
       invite(i: T.AdminTenantInviteRequest): Promise<T.TeamMember>;
     };
+    /** System Manager only (403 otherwise, including SaaS Admin). Manages the signup allowlist. */
+    betaAccess: {
+      list(): Promise<T.BetaAccessList>;
+      add(i: T.BetaAccessAddRequest): Promise<T.BetaAccessAddResult>;
+      /** 404 when the pattern is not listed. */
+      remove(pattern: string): Promise<T.BetaAccessRemoveResult>;
+      /** Exact emails only; 404 when not listed, 422 for a non-email. */
+      resend(email: string): Promise<T.BetaAccessResendResult>;
+    };
   };
   tenants: {
     list(p?: T.ListParams & { status?: T.TenantStatus }): Promise<T.Tenant[]>;
@@ -236,6 +245,12 @@ export const createClient = (o: ClientOptions): SaasClient => {
         listPage: (p) => page('admin.tenants.list', p),
         create: (i) => post('admin.tenants.create', i),
         invite: (i) => post('admin.tenants.invite', i),
+      },
+      betaAccess: {
+        list: () => get('admin.beta_access.list'),
+        add: (i) => post('admin.beta_access.add', i),
+        remove: (pattern) => post('admin.beta_access.remove', { pattern }),
+        resend: (email) => post('admin.beta_access.resend', { email }),
       },
     },
     events: { stream: subscribe },
