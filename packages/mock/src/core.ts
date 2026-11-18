@@ -25,7 +25,17 @@ export interface MockOptions {
   admin?: boolean;
   /** When true, tenant creation (incl. admin.tenants.create) returns 503 capacity_exhausted. */
   capacityExhausted?: boolean;
+  /** Experimental flags that are switched on (like saas_core's `saas_core_experimental`). Default none: gated routes return 403 experimental_disabled. Use 'all' to enable everything. */
+  experimental?: ExperimentalFlag[] | 'all';
 }
+export type ExperimentalFlag = 'api_tokens' | 'team' | 'support' | 'sse' | 'restore';
+const EXPERIMENTAL_ROUTE = (name: string): ExperimentalFlag | undefined =>
+  name.startsWith('api_tokens.') ? 'api_tokens'
+  : name.startsWith('tenants.team.') || name === 'team.accept_invite' ? 'team'
+  : name.startsWith('support.') ? 'support'
+  : name === 'events.stream' ? 'sse'
+  : name === 'tenants.backups.restore' || name === 'tenants.backups.download_link' ? 'restore'
+  : undefined;
 
 export interface MockStore {
   loggedIn: boolean;
@@ -78,7 +88,7 @@ const DAY = 86_400_000;
 
 const STEPS: Record<JobKind, string[]> = {
   provision: ['Reserve capacity', 'Create site', 'Install apps', 'Apply template', 'Configure domain'],
-  duplicate: ['Snapshot source', 'Create site', 'Restore data', 'Configure domain'],
+  restore: ['Validate backup', 'Restore database', 'Restore files', 'Verify'],
   change_plan: ['Validate plan', 'Apply limits', 'Update subscription'],
   backup: ['Freeze writes', 'Dump database', 'Archive files', 'Upload'],
   terminate: ['Archive data', 'Revoke domain', 'Drop site'],
@@ -173,13 +183,12 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     timers.add(t);
   };
 
-  function emit(type: SaasEvent['type'], data: unknown, tenant?: string, job?: string): void {
-    const e: SaasEvent = { seq: ++seq, type, at: iso(), tenant, job, data: JSON.parse(JSON.stringify(data)) };
+  function emit(type: Exclude<SaasEvent['type'], 'tenant.updated'>, data: unknown, tenant?: string, job?: string): void {
+    const e = { seq: ++seq, type, at: iso(), tenant, job, data: JSON.parse(JSON.stringify(data)) } as SaasEvent;
     store.events.push(e);
     if (store.events.length > 500) store.events.shift();
     subs.forEach((s) => s(e));
   }
-  const emitTenant = (t: Tenant) => emit('tenant.updated', t, t.name, t.active_job ?? undefined);
   const emitJob = (j: Job) => emit('job.updated', j, j.tenant, j.name);
 
   function startJob(tenant: Tenant, kind: JobKind, hooks: { create?: () => void; run?: () => void; done: () => void }): Job {
@@ -193,7 +202,6 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     hooks.create?.();
     phases.set(job.name, 0);
     emitJob(job);
-    emitTenant(tenant);
     const total = job.steps!.length;
     const step = (s: JobStep, state: JobState) => {
       s.state = state;
@@ -212,7 +220,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
         if (k === 0) hooks.run?.(); else step(steps[k - 1]!, 'succeeded');
         step(steps[k]!, 'running');
         job.progress = Math.round((k / total) * 1000) / 1000;
-        if (k === 0) emitTenant(tenant);
+       
       } else {
         step(steps[total - 1]!, 'succeeded');
         job.state = 'succeeded'; job.progress = 1; job.finished_at = iso();
@@ -263,12 +271,12 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
       period_end: iso(Date.now() + 30 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: trial ? iso(Date.now() + trial * DAY) : null });
     store.backups.set(t.name, store.backups.get(t.name) ?? []);
   }
-  function provision(t: Tenant, kind: 'provision' | 'duplicate'): Job {
+  function provision(t: Tenant, kind: 'provision'): Job {
     t.status = 'pending';
     store.tenants.set(t.name, t);
     return startJob(t, kind, {
       run: () => { t.status = 'provisioning'; },
-      done: () => { t.status = 'active'; t.url = `https://${t.slug}.mock.test`; emitTenant(t); },
+      done: () => { t.status = 'active'; t.url = `https://${t.slug}.mock.test`; },
     });
   }
   const templateOf = (slug: string | undefined, planCode: string) => {
@@ -278,6 +286,16 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     if (tpl.min_plan && order.indexOf(planCode) < order.indexOf(tpl.min_plan)) invalid('template', `Requires plan ${tpl.min_plan} or higher`);
     return tpl.slug;
   };
+
+  function cancelPreview(t: Tenant) {
+    const s = store.subscriptions.get(t.name) ?? fail(404, 'not_found', 'Subscription not found');
+    const blocked = s!.cancel_at_period_end || s!.status === 'canceled' ? 'already_canceling' as const : null;
+    const paid = s!.status === 'trialing' ? 0 : 99900;
+    const refund = blocked ? 0 : Math.round(paid * 0.5);
+    return { tenant: t.name, subscription: t.name, plan: s!.plan, plan_label: s!.plan, currency: 'INR', can_cancel: !blocked, blocked_reason: blocked,
+      cycle_start: null, cycle_end: null, cycle_days: 30, days_used: 15, days_unused: 15, paid_minor: paid, charge_minor: paid - refund, refund_minor: refund,
+      stops_at: iso(Date.now() + DAY), timezone: 'Asia/Kolkata', refund_to: 'original payment method', renewal_date: null };
+  }
 
   // ---------- routes ----------
   const routes: Record<string, Route> = {
@@ -501,16 +519,6 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
       const job = provision(t, 'provision');
       return ok({ tenant: JSON.parse(JSON.stringify(t)), job, checkout_required: false }, 202);
     } },
-    'tenants.duplicate': { m: 'POST', auth: true, run: (p) => {
-      const src = tenantOf(p);
-      const slug = str(p, 'slug');
-      checkSlug(slug);
-      if (src.status !== 'active') fail(409, 'conflict', 'Only active tenants can be duplicated');
-      const t = newTenant(slug, src.plan, src.template, src.region);
-      subscribeTenant(t, planOf(src.plan));
-      const job = provision(t, 'duplicate');
-      return ok({ tenant: JSON.parse(JSON.stringify(t)), job, checkout_required: false }, 202);
-    } },
     'tenants.request_delete': { m: 'POST', auth: true, run: (p) => {
       const t = tenantOf(p);
       if (str(p, 'confirm_slug') !== t.slug) invalid('confirm_slug', 'Does not match the tenant slug');
@@ -544,7 +552,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
         const list = store.backups.get(t.name) ?? [];
         list.unshift({ name: `bk-${t.slug}-${String(n).padStart(4, '0')}`, created_at: iso(), size_bytes: 10_485_760 + n * 1024, kind: 'on_demand', parts: ['database', 'public', 'private'] });
         store.backups.set(t.name, list);
-        emitTenant(t);
+       
       } });
       return ok(job, 202);
     } },
@@ -573,20 +581,31 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
         t.plan = plan.code;
         const s = store.subscriptions.get(t.name);
         if (s) { s.plan = plan.code; emit('subscription.updated', s, t.name); }
-        emitTenant(t);
+       
       } });
       return ok(job, 202);
     } },
     'subscription.get': { m: 'GET', auth: true, run: (p) => ok(store.subscriptions.get(tenantOf(p).name) ?? fail(404, 'not_found', 'Subscription not found')) },
-    'subscription.portal_link': { m: 'POST', auth: true, run: (p) => { const t = tenantOf(p); return link(`https://billing.mock.test/portal/${t.slug}`, 30); } },
-    'subscription.cancel': { m: 'POST', auth: true, run: (p) => {
+    'billing.preview_cancel': { m: 'GET', auth: true, run: (p) => ok(cancelPreview(tenantOf(p))) },
+    'billing.cancel': { m: 'POST', auth: true, run: (p) => {
       const t = tenantOf(p);
       const s = store.subscriptions.get(t.name) ?? fail(404, 'not_found', 'Subscription not found');
-      if (s.status === 'canceled') fail(409, 'conflict', 'Subscription is already canceled');
-      const atEnd = p.at_period_end === undefined ? true : Boolean(p.at_period_end);
-      if (atEnd) s.cancel_at_period_end = true; else { s.status = 'canceled'; s.cancel_at_period_end = false; }
+      const pv = cancelPreview(t);
+      if (!pv.can_cancel) fail(409, pv.blocked_reason ?? 'already_canceling', 'Cannot cancel right now');
+      s!.cancel_at_period_end = true;
       emit('subscription.updated', s, t.name);
-      return ok(s);
+      return ok({ ...pv, status: 'canceling', refund: pv.refund_minor > 0 ? { id: `rfnd_mock_${t.slug}`, status: 'pending', amount_minor: pv.refund_minor, currency: pv.currency ?? 'INR' } : null });
+    } },
+    'billing.preview_change': { m: 'GET', auth: true, run: (p) => {
+      const t = tenantOf(p);
+      const to = planOf(str(p, 'plan'));
+      const from = planOf(t.plan);
+      const price = (x: Plan) => x.prices?.[0]?.amount ?? 0;
+      const direction = to.code === from.code ? 'same' : price(to) > price(from) ? 'upgrade' : 'downgrade';
+      const diff = Math.max(0, price(to) - price(from));
+      return ok({ tenant: t.name, from_plan: from.code, to_plan: to.code, direction, effective_at: iso(Date.now() + DAY), days_remaining: 15, cycle_days: 30,
+        currency: 'INR', amount_due_minor: direction === 'upgrade' ? Math.round(diff / 2) : 0, credit_minor: 0, new_cycle_price_minor: price(to),
+        renewal_date: null, payment_required: direction === 'upgrade', timezone: 'Asia/Kolkata' });
     } },
     'invoices.list': { m: 'GET', auth: true, run: (p) => {
       if (p.tenant) tenantOf(p);
@@ -667,6 +686,8 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
       if (!route) fail(404, 'not_found', `Unknown method ${name}`);
       if (req.method !== route!.m) fail(405, 'method_not_allowed', `Use ${route!.m}`);
       if (route!.auth && (options.forceUnauthenticated || !store.loggedIn)) fail(401, 'unauthorized', 'Authentication required');
+      const flag = EXPERIMENTAL_ROUTE(name);
+      if (flag && opts.experimental !== 'all' && !(opts.experimental ?? []).includes(flag)) fail(403, 'experimental_disabled', `Operation is experimental and disabled (enable '${flag}' in saas_core_experimental)`);
       let params: Rec = {};
       let rawBody = '';
       if (route!.m === 'GET') {

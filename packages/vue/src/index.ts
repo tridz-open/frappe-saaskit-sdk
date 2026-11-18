@@ -73,7 +73,6 @@ export const useTenants = (p?: ListParams & { status?: TenantStatus }) => { cons
 export const useSlugAvailability = (slug: Id) => { const c = useSaasClient(); return idq(slug, (v) => c.tenants.checkSlug(v)); };
 export const useTenant = (id: Id) => { const c = useSaasClient(); return idq(id, (v) => c.tenants.get(v)); };
 export const useCreateTenant = () => { const c = useSaasClient(); return mutation((i: TenantCreateRequest) => c.tenants.create(i)); };
-export const useDuplicateTenant = () => { const c = useSaasClient(); return mutation((id: string, i: { slug: string }) => c.tenants.duplicate(id, i)); };
 export const useRequestDeleteTenant = () => { const c = useSaasClient(); return mutation((id: string, i: { confirm_slug: string; reason?: string }) => c.tenants.requestDelete(id, i)); };
 /** @deprecated use useRequestDeleteTenant */
 export const useDeleteTenant = useRequestDeleteTenant;
@@ -87,8 +86,9 @@ export const useBackupDownloadLink = () => { const c = useSaasClient(); return m
 
 export const useCheckout = () => { const c = useSaasClient(); return mutation((i: CheckoutRequest) => c.checkout.createSession(i)); };
 export const useSubscription = (tenantId: Id) => { const c = useSaasClient(); return idq(tenantId, (v) => c.subscription.get(v)); };
-export const useSubscriptionPortalLink = () => { const c = useSaasClient(); return mutation((tenantId: string, returnUrl?: string) => c.subscription.portalLink(tenantId, returnUrl)); };
-export const useCancelSubscription = () => { const c = useSaasClient(); return mutation((tenantId: string, i?: { at_period_end?: boolean; reason?: string }) => c.subscription.cancel(tenantId, i)); };
+export const useCancelSubscription = () => { const c = useSaasClient(); return mutation((tenantId: string, i?: { reason?: string }) => c.billing.cancel(tenantId, i)); };
+export const usePreviewCancel = () => { const c = useSaasClient(); return mutation((tenantId: string) => c.billing.previewCancel(tenantId)); };
+export const usePreviewChange = () => { const c = useSaasClient(); return mutation((tenantId: string, plan: string) => c.billing.previewChange(tenantId, plan)); };
 export const usePaymentMethodsPortalLink = () => { const c = useSaasClient(); return mutation((i?: { tenant?: string; return_url?: string }) => c.paymentMethods.portalLink(i)); };
 
 export const useInvoices = (p?: ListParams & { tenant?: string }) => { const c = useSaasClient(); return query(() => c.invoices.list(p)); };

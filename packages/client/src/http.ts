@@ -3,6 +3,7 @@ import {
   ConflictError,
   CsrfError,
   ForbiddenError,
+  ExperimentalDisabledError,
   NetworkError,
   NotFoundError,
   RateLimitError,
@@ -136,7 +137,7 @@ export function mapError(status: number, body: unknown, headers: Headers): SaasE
 function byStatus(status: number, eb: ErrorBody, headers: Headers): SaasError {
   const args = [eb.message ?? `HTTP ${status}`, status, eb.code, eb.field_errors, eb.request_id] as const;
   if (status === 401) return new AuthError(...args);
-  if (status === 403) return new ForbiddenError(...args);
+  if (status === 403) return eb.code === 'experimental_disabled' ? new ExperimentalDisabledError(...args) : new ForbiddenError(...args);
   if (status === 404) return new NotFoundError(...args);
   if (status === 409) return new ConflictError(...args);
   if (status === 422 || status === 400 || status === 417) return new ValidationError(...args);

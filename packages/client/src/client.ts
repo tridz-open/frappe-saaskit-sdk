@@ -39,11 +39,13 @@ export interface SaasClient {
     confirmEmail(key: string): Promise<void>;
   };
   me: { get(): Promise<T.Me>; update(i: T.ProfileUpdate): Promise<T.Me> };
+  /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `api_tokens`). */
   apiTokens: {
     list(p?: T.ListParams): Promise<T.ApiToken[]>;
     create(i: T.CreateTokenInput): Promise<T.ApiTokenCreated>;
     revoke(token: string): Promise<void>;
   };
+  /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `team`). */
   team: {
     list(tenantId: string, p?: T.ListParams): Promise<T.TeamMember[]>;
     invite(tenantId: string, i: { email: string; role: T.TeamRole }): Promise<T.TeamMember>;
@@ -79,7 +81,6 @@ export interface SaasClient {
     checkSlug(slug: string): Promise<T.SlugAvailability>;
     get(id: string): Promise<T.Tenant>;
     create(i: T.TenantCreateRequest): Promise<T.TenantCreated>;
-    duplicate(id: string, i: { slug: string }): Promise<T.TenantCreated>;
     requestDelete(id: string, i: { confirm_slug: string; reason?: string }): Promise<T.Job>;
     suspendStatus(id: string): Promise<T.SuspendStatus>;
     openLoginLink(id: string): Promise<T.Link>;
@@ -88,8 +89,9 @@ export interface SaasClient {
   backups: {
     list(tenantId: string, p?: T.ListParams): Promise<T.Backup[]>;
     create(tenantId: string): Promise<T.Job>;
+    /** @experimental Disabled by default on saas_core (flag `restore`). */
     downloadLink(tenantId: string, backup: string, part: T.BackupPart): Promise<T.Link>;
-    /** Guarded: returns a pending approval request, never a job. */
+    /** @experimental Disabled by default on saas_core (flag `restore`). Guarded: returns a pending approval request, never a job. */
     restore(tenantId: string, backup: string): Promise<T.RestoreApproval>;
   };
   checkout: {
@@ -98,8 +100,12 @@ export interface SaasClient {
   };
   subscription: {
     get(tenantId: string): Promise<T.Subscription>;
-    portalLink(tenantId: string, returnUrl?: string): Promise<T.Link>;
-    cancel(tenantId: string, i?: { at_period_end?: boolean; reason?: string }): Promise<T.Subscription>;
+  };
+  /** Day-based billing: preview then apply a cancel or plan change. Replaces the removed subscription.cancel. */
+  billing: {
+    previewCancel(tenantId: string): Promise<T.CancelPreview>;
+    cancel(tenantId: string, i?: { reason?: string }): Promise<T.CancelResult>;
+    previewChange(tenantId: string, plan: string): Promise<T.ChangePreview>;
   };
   invoices: {
     list(p?: T.ListParams & { tenant?: string }): Promise<T.Invoice[]>;
@@ -108,6 +114,7 @@ export interface SaasClient {
   };
   paymentMethods: { portalLink(i?: { tenant?: string; return_url?: string }): Promise<T.Link> };
   jobs: { get(id: string): Promise<T.Job>; list(p?: T.ListParams & { tenant?: string }): Promise<T.Job[]> };
+  /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `support`). */
   support: {
     list(p?: T.ListParams): Promise<T.SupportTicket[]>;
     get(id: string): Promise<T.SupportTicket>;
@@ -115,6 +122,7 @@ export interface SaasClient {
     reply(ticket: string, body: string): Promise<T.SupportTicket>;
     close(ticket: string): Promise<T.SupportTicket>;
   };
+  /** @experimental SSE is disabled by default on saas_core (flag `sse`); the client then falls back to polling. */
   events: { stream: SaasClient['subscribe'] };
   /** SSE GET events.stream?job=|tenant= with auto-reconnect (Last-Event-ID), falls back to polling jobs.get/tenants.get. */
   subscribe(
@@ -168,14 +176,16 @@ export const createClient = (o: ClientOptions): SaasClient => {
       },
     },
     me: { get: () => remember(get('me')), update: (i) => remember(post('me.update', i)) },
-    apiTokens: {
+    /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `api_tokens`). */
+  apiTokens: {
       list: (p) => items('api_tokens.list', p),
       create: (i) => postIdem('api_tokens.create', i),
       revoke: async (token) => {
         await post('api_tokens.revoke', { token });
       },
     },
-    team: {
+    /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `team`). */
+  team: {
       list: (t, p) => items('tenants.team.list', { ...p, tenant: t }),
       invite: (t, i) => postIdem('tenants.team.invite', { tenant: t, ...i }),
       revokeInvite: async (t, invite) => {
@@ -193,7 +203,6 @@ export const createClient = (o: ClientOptions): SaasClient => {
       checkSlug: (slug) => get('tenants.slug_availability', { slug }),
       get: (id) => get('tenants.get', { tenant: id }),
       create: (i) => postIdem('tenants.create', i),
-      duplicate: (id, i) => postIdem('tenants.duplicate', { tenant: id, ...i }),
       requestDelete: (id, i) => postIdem('tenants.request_delete', { tenant: id, ...i }),
       suspendStatus: (id) => get('tenants.suspend_status', { tenant: id }),
       openLoginLink: (id) => post('tenants.open_login_link', { tenant: id }),
@@ -211,8 +220,11 @@ export const createClient = (o: ClientOptions): SaasClient => {
     },
     subscription: {
       get: (t) => get('subscription.get', { tenant: t }),
-      portalLink: (t, return_url) => post('subscription.portal_link', { tenant: t, return_url }),
-      cancel: (t, i) => postIdem('subscription.cancel', { tenant: t, ...i }),
+    },
+    billing: {
+      previewCancel: (t) => get('billing.preview_cancel', { tenant: t }),
+      cancel: (t, i) => postIdem('billing.cancel', { tenant: t, ...i }),
+      previewChange: (t, plan) => get('billing.preview_change', { tenant: t, plan }),
     },
     invoices: {
       list: (p) => items('invoices.list', p),
@@ -221,7 +233,8 @@ export const createClient = (o: ClientOptions): SaasClient => {
     },
     paymentMethods: { portalLink: (i) => post('payment_methods.portal_link', i) },
     jobs: { get: (id) => get('jobs.get', { job: id }), list: (p) => items('jobs.list', p) },
-    support: {
+    /** @experimental Disabled by default on saas_core (403 `experimental_disabled`, flag `support`). */
+  support: {
       list: (p) => items('support.tickets.list', p),
       get: (id) => get('support.tickets.get', { ticket: id }),
       create: (i) => postIdem('support.tickets.create', i),
@@ -243,7 +256,8 @@ export const createClient = (o: ClientOptions): SaasClient => {
         resend: (email) => post('admin.beta_access.resend', { email }),
       },
     },
-    events: { stream: subscribe },
+    /** @experimental SSE is disabled by default on saas_core (flag `sse`); the client then falls back to polling. */
+  events: { stream: subscribe },
     subscribe,
   };
 };

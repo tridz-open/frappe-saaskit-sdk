@@ -10,7 +10,7 @@ import {
   useTemplates, useInvoicePdf, useJobs, useReplyToTicket, useSupportTicket, useBackupDownloadLink, useOpenLoginLink,
   useUpdateProfile, useApiTokens, useCreateApiToken, useRevokeApiToken, useTeamMembers, useInviteMember, useRevokeInvite,
   useChangeMemberRole, useRemoveMember, useAcceptInvite, useRestoreBackup,
-  useSuspendStatus, useInvoice, useSubscriptionPortalLink, usePaymentMethodsPortalLink, useRequestPasswordReset,
+  useSuspendStatus, useInvoice, usePreviewCancel, usePaymentMethodsPortalLink, useRequestPasswordReset,
   useRequestEmailVerification, useConfirmEmail, useCloseTicket,
   usePublicConfig, useAdminTenants, useAdminCreateTenant, useAdminInviteTenant,
 } from './index';
@@ -39,7 +39,8 @@ function fake(over: Record<string, unknown> = {}) {
     },
     backups: { downloadLink: vi.fn(async () => ({ url: 'd' })) },
     checkout: { createSession: vi.fn(async () => ({ url: 'c' })) },
-    subscription: { get: vi.fn(async () => ({ tenant: 't1', plan: 'pro', status: 'active' })), portalLink: vi.fn(async () => ({ url: 'p' })) },
+    subscription: { get: vi.fn(async () => ({ tenant: 't1', plan: 'pro', status: 'active' })) },
+    billing: { previewCancel: vi.fn(async () => ({ can_cancel: true })), cancel: vi.fn(async () => ({ status: 'canceling' })), previewChange: vi.fn(async () => ({ direction: 'upgrade' })) },
     invoices: { get: vi.fn(async () => ({ name: 'i1' })), pdf: vi.fn(async () => new Blob(['x'])) },
     paymentMethods: { portalLink: vi.fn(async () => ({ url: 'pm' })) },
     jobs: { get: vi.fn(async () => state.job), list: vi.fn(async () => [state.job]) },
@@ -127,20 +128,20 @@ describe('mutations', () => {
     const { client } = fake();
     const { result } = renderHook(() => ({
       login: useOpenLoginLink(), dl: useBackupDownloadLink(), pdf: useInvoicePdf(), reply: useReplyToTicket(),
-      sp: useSubscriptionPortalLink(), pm: usePaymentMethodsPortalLink(), rp: useRequestPasswordReset(),
+      sp: usePreviewCancel(), pm: usePaymentMethodsPortalLink(), rp: useRequestPasswordReset(),
     }), { wrapper: wrap(client) });
     await act(async () => {
       await result.current.login.mutateAsync('t1');
       await result.current.dl.mutateAsync({ tenantId: 't1', backup: 'b', part: 'database' });
       expect(await result.current.pdf.mutateAsync('i1')).toBeInstanceOf(Blob);
       await result.current.reply.mutateAsync({ ticket: 'tk', body: 'hi' });
-      await result.current.sp.mutateAsync({ tenantId: 't1', returnUrl: 'r' });
+      await result.current.sp.mutateAsync('t1');
       await result.current.pm.mutateAsync();
       await result.current.rp.mutateAsync('a@b.c');
     });
     expect(client.backups.downloadLink).toHaveBeenCalledWith('t1', 'b', 'database');
     expect(client.support.reply).toHaveBeenCalledWith('tk', 'hi');
-    expect(client.subscription.portalLink).toHaveBeenCalledWith('t1', 'r');
+    expect(client.billing.previewCancel).toHaveBeenCalledWith('t1');
     expect(client.auth.requestPasswordReset).toHaveBeenCalledWith('a@b.c');
   });
 });

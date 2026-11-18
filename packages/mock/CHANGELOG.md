@@ -1,5 +1,18 @@
 # @frappe-saaskit/mock
 
+## 0.1.0-alpha.3
+
+### Minor Changes
+
+- Track saas_core API 2.0.0-alpha.1. Removed `tenants.duplicate`, `subscription.cancel` and `subscription.portalLink` (use `billing.cancel` and `paymentMethods.portalLink`); added `billing.previewCancel`, `billing.cancel` and `billing.previewChange` (React `usePreviewCancel` / `usePreviewChange`, `useCancelSubscription` now calls `billing.cancel`). Dropped the Paddle gateway and the `tenant.updated` / `invoice.created` stream events (`{ tenantId }` subscriptions now end on terminal job events or the polling fallback). New `ExperimentalDisabledError` for 403 `experimental_disabled`; `apiTokens`, `team`, `support`, SSE, `backups.restore` and `backups.downloadLink` are experimental and off by default on the server. The mock matches (404 for removed routes, `experimental` option). README rewritten for first-time readers, with typechecked examples.
+- cb8ea7a: OSS alpha cleanup. Removed the `bearer` auth strategy (saas_core rejects it) and the Node `scheme` option. The mock now supports Razorpay only (Stripe and Paddle paths removed). `@frappe-saaskit/vue` and `@frappe-saaskit/node` are marked experimental with a one-time console notice. README gains a "Verified against live saas_core" matrix.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [cb8ea7a]
+  - @frappe-saaskit/client@0.1.0-alpha.3
+
 ## 0.1.0-alpha.2
 
 ### Minor Changes
