@@ -1,5 +1,9 @@
 # frappe-saaskit-sdk (`@frappe-saaskit/*`)
 
+> [!IMPORTANT]
+> **This repository is archived.** The SDK now lives in [tridz-open/saas_core under `sdk/`](https://github.com/tridz-open/saas_core/tree/main/sdk) and is released with saas_core (tarballs on [saas_core releases](https://github.com/tridz-open/saas_core/releases), starting v0.1.0-alpha.3 / SDK 0.1.0-alpha.4). Docs: https://tridz-open.github.io/frappe-saaskit/
+
+
 > [!WARNING]
 > **ALPHA, BLEEDING EDGE.** Current line: `0.1.0-alpha.x`. Expect breaking changes between any two releases, with no
 > deprecation period. Only a small part of the API has been exercised against a live backend (see
