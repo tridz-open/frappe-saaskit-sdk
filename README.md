@@ -6,6 +6,12 @@
 > [Verified vs experimental](#verified-vs-experimental)); everything else is experimental. Do not build a production
 > business on this yet. Not on npm: install from [GitHub release tarballs](#install).
 
+## Use at your own risk, and contributions
+
+**Use at your own risk:** this is early alpha software, provided "as is" without warranty of any kind (see [LICENSE](LICENSE)). Don't use it for production data you can't afford to lose.
+
+**Contributions:** we are not accepting pull requests or outside contributions at this time. If you find a bug or a problem, please [open a GitHub issue](https://github.com/tridz-open/frappe-saaskit-sdk/issues).
+
 ## What is this?
 
 A TypeScript SDK for building the **customer-facing side of a SaaS** (signup, workspaces/tenants, billing and checkout,
@@ -37,23 +43,17 @@ saas_core. The rest of each package is experimental.
 
 ## Install
 
-The SDK repo is private for now, so release tarballs need a GitHub login that can read
-`tridz-open/frappe-saaskit-sdk`. Use the [`gh` CLI](https://cli.github.com) (`gh auth login` once). Tarballs are attached to
-releases named `v0.1.0-alpha.N`.
+Install from the public GitHub release tarballs (they are attached to releases named `v0.1.0-alpha.N`). Pin the exact release you tested.
 
 ```bash
-# 1. download the tarballs of the latest release into ./vendor/saaskit
-V=$(gh release list -R tridz-open/frappe-saaskit-sdk --limit 1 --json tagName -q '.[0].tagName' | sd '^v' '')
-mkdir -p vendor/saaskit
-gh release download "v$V" -R tridz-open/frappe-saaskit-sdk -D vendor/saaskit -p '*.tgz' --clobber
+V=0.1.0-alpha.3
+B=https://github.com/tridz-open/frappe-saaskit-sdk/releases/download/v$V
 
-# 2. add them (client + react; mock for development only)
-pnpm add "file:./vendor/saaskit/frappe-saaskit-client-$V.tgz" "file:./vendor/saaskit/frappe-saaskit-react-$V.tgz" \
+# client + react; mock for development only
+pnpm add "$B/frappe-saaskit-client-$V.tgz" "$B/frappe-saaskit-react-$V.tgz" \
   @tanstack/react-query react react-dom
-pnpm add -D "file:./vendor/saaskit/frappe-saaskit-mock-$V.tgz"
+pnpm add -D "$B/frappe-saaskit-mock-$V.tgz"
 ```
-
-(Without `sd`, set `V` by hand, for example `V=0.1.0-alpha.3`. Pin the exact release you tested.)
 
 The other packages depend on `@frappe-saaskit/client`, which is not on the npm registry, so pin it with an override in
 `package.json` (npm users: top-level `"overrides"` instead of `"pnpm": { "overrides" }`) and use the same version string:
@@ -62,13 +62,13 @@ The other packages depend on `@frappe-saaskit/client`, which is not on the npm r
 {
   "pnpm": {
     "overrides": {
-      "@frappe-saaskit/client": "file:./vendor/saaskit/frappe-saaskit-client-0.1.0-alpha.3.tgz"
+      "@frappe-saaskit/client": "https://github.com/tridz-open/frappe-saaskit-sdk/releases/download/v0.1.0-alpha.3/frappe-saaskit-client-0.1.0-alpha.3.tgz"
     }
   }
 }
 ```
 
-Each release also has a `SHA256SUMS` asset. Bump every file name (and the override) together when you upgrade. Once the
+Each release also has a `SHA256SUMS` asset. Bump every URL (and the override) together when you upgrade. Once the
 packages are on npm, delete the override and depend on `"@frappe-saaskit/client": "^0.1.0-alpha.3"`.
 
 Requirements: Node.js 20+, pnpm 9+ (pnpm 10 to build from source), ESM only. For real use you also need a Frappe site with
