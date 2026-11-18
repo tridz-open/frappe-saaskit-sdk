@@ -31,7 +31,7 @@ All packages are ESM-only.
 The packages are attached as `.tgz` files to GitHub releases of this repo. Add them with URLs and pin the inner client with an override (the other packages depend on `@frappe-saaskit/client`, which is not on the npm registry yet):
 
 ```bash
-V=0.1.0-alpha.1; R=https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v$V
+V=0.1.0-alpha.1; R=https://github.com/tridz-open/frappe-saaskit-sdk/releases/download/v$V
 pnpm add $R/frappe-saaskit-client-$V.tgz $R/frappe-saaskit-react-$V.tgz @tanstack/react-query react react-dom
 pnpm add -D $R/frappe-saaskit-mock-$V.tgz
 ```
@@ -42,7 +42,7 @@ Then add this to your `package.json` (npm users: top-level `"overrides"` instead
 {
   "pnpm": {
     "overrides": {
-      "@frappe-saaskit/client": "https://github.com/tridz-dev/frappe-saaskit-sdk/releases/download/v0.1.0-alpha.1/frappe-saaskit-client-0.1.0-alpha.1.tgz"
+      "@frappe-saaskit/client": "https://github.com/tridz-open/frappe-saaskit-sdk/releases/download/v0.1.0-alpha.1/frappe-saaskit-client-0.1.0-alpha.1.tgz"
     }
   }
 }
@@ -65,7 +65,7 @@ Release assets: `frappe-saaskit-{client,react,vue,node,mock}-<version>.tgz` and 
 ## Build from source
 
 ```bash
-git clone https://github.com/tridz-dev/frappe-saaskit-sdk.git
+git clone https://github.com/tridz-open/frappe-saaskit-sdk.git
 cd frappe-saaskit-sdk
 corepack enable          # provides the pinned pnpm
 pnpm install
@@ -254,7 +254,7 @@ The SDK talks only to the saas_core API. Frappe Cloud credentials or hosts must 
 ## Related
 
 - saas_core: the backend Frappe app and source of the OpenAPI contract (not public yet; the contract is vendored in `spec/v1.yaml`, and `@frappe-saaskit/mock` stands in for it)
-- [tridz-dev/frappe-saaskit-starter](https://github.com/tridz-dev/frappe-saaskit-starter): a starter app built on this SDK
+- [tridz-open/frappe-saaskit-starter](https://github.com/tridz-open/frappe-saaskit-starter): a starter app built on this SDK
 
 ## License
 

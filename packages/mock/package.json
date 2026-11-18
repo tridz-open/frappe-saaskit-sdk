@@ -6,12 +6,12 @@
   "author": "Tridz Technologies",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tridz-dev/frappe-saaskit-sdk.git",
+    "url": "git+https://github.com/tridz-open/frappe-saaskit-sdk.git",
     "directory": "packages/mock"
   },
-  "homepage": "https://github.com/tridz-dev/frappe-saaskit-sdk#readme",
+  "homepage": "https://github.com/tridz-open/frappe-saaskit-sdk#readme",
   "bugs": {
-    "url": "https://github.com/tridz-dev/frappe-saaskit-sdk/issues"
+    "url": "https://github.com/tridz-open/frappe-saaskit-sdk/issues"
   },
   "keywords": [
     "frappe",
