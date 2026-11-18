@@ -12,9 +12,9 @@ See also: [Note to the Frappe team](#note-to-the-frappe-team).
 |---|---|---|
 | [`@frappe-saaskit/client`](packages/client/README.md) | Framework-free typed client: plans, templates, auth, tenants, backups, checkout/billing, jobs, support, API tokens, team, admin. Typed errors, safe retries (idempotent requests only), live updates over SSE. | none at runtime |
 | [`@frappe-saaskit/react`](packages/react/README.md) | `SaasProvider`, TanStack Query v5 hooks, and a Razorpay Checkout.js helper (`useRazorpayCheckout`). | peers `react >= 18`, `@tanstack/react-query >= 5` |
-| [`@frappe-saaskit/vue`](packages/vue/README.md) | Vue 3 composables (no extra query library). | peer `vue >= 3.4` |
-| [`@frappe-saaskit/node`](packages/node/README.md) | Node helpers for scripts and CLIs: `createNodeClient`, `tokenFromEnv`, `loadTokenFile`. | none |
-| [`@frappe-saaskit/mock`](packages/mock/README.md) | In-memory saas_core lookalike for tests, demos and UI work without a backend (`fetch` mode, or MSW handlers). | `msw` (only the `./node` and `./browser` entries need it) |
+| [`@frappe-saaskit/vue`](packages/vue/README.md) | **Experimental.** Vue 3 composables (no extra query library). | peer `vue >= 3.4` |
+| [`@frappe-saaskit/node`](packages/node/README.md) | **Experimental.** Node helpers for scripts and CLIs: `createNodeClient`, `tokenFromEnv`, `loadTokenFile`. | none |
+| [`@frappe-saaskit/mock`](packages/mock/README.md) | In-memory saas_core lookalike (Razorpay gateway only) for tests, demos and UI work without a backend (`fetch` mode, or MSW handlers). | `msw` (only the `./node` and `./browser` entries need it) |
 
 All packages are ESM-only.
 
@@ -147,7 +147,9 @@ export const App = () => <SaasProvider client={client}><Pricing /></SaasProvider
 
 `SaasProvider` mounts its own `QueryClientProvider` unless you pass `queryClient`. `useJob(jobId)` and `useTenantLive(tenantId)` follow provisioning live. The full hook list is in [packages/react/README.md](packages/react/README.md).
 
-### Vue
+### Vue (experimental)
+
+`@frappe-saaskit/vue` has no consumers and is tested only against mocked clients. It prints a one-time console notice.
 
 ```ts
 import { createApp } from 'vue';
@@ -174,7 +176,7 @@ const client = createClient({ baseUrl: 'https://app.example.com', auth: { type: 
 const fromEnv = createNodeClient({ baseUrl: 'https://app.example.com', token: tokenFromEnv() });
 ```
 
-saas_core's personal access tokens (`apiTokens.create`) are not accepted as bearer tokens yet, see [Known gaps](#known-gaps-and-limitations).
+saas_core's personal access tokens (`apiTokens.create`) are not accepted as bearer tokens yet, see [Known gaps](#known-gaps-and-limitations). `@frappe-saaskit/node` is experimental and prints a one-time console notice.
 
 ### Mock backend (no saas_core needed)
 
@@ -206,13 +208,33 @@ pnpm spec:sync ../saas_core       # refresh spec/v1.yaml and spec/SOURCE.md from
 
 `codegen:check` runs in CI on every push. A missing spec is always an error.
 
+## Verified against live saas_core
+
+Only the namespaces below were exercised against a live saas_core site (Razorpay is the only live-verified payment gateway). Everything else is covered by unit tests against fetch stubs or the mock only and should be treated as **experimental**.
+
+| Client namespace | Status |
+|---|---|
+| `auth` (login, logout), `auth.signup` | Verified |
+| `me.get` | Verified |
+| `plans`, `config` | Verified |
+| `checkout.createSession` (Razorpay, `order` mode) | Verified |
+| `tenants` (list, get, create, slug check) | Verified |
+| `jobs` | Verified |
+| `admin.betaAccess` (list, add, remove, resend) | Verified |
+| `checkout.createSession` subscription mode, `payment.failed` paths | Experimental |
+| `events` / `subscribe` (SSE, with polling fallback) | Experimental |
+| `apiTokens`, `team`, `support` (tickets) | Experimental |
+| `invoices` (including `invoices.pdf`), `paymentMethods.portalLink`, `subscription.portalLink` | Experimental |
+| `backups.restore`, `tenants.duplicate`, `tenants.changePlan`, `tenants.openLoginLink`, `tenants.suspendStatus` | Experimental |
+| `admin.tenants` (list, create, invite), `me.update`, `auth` password reset / email verification | Experimental |
+| `@frappe-saaskit/vue`, `@frappe-saaskit/node` | Experimental |
+
 ## Auth modes
 
 | `auth` | Sends | Use for |
 |---|---|---|
 | `{ type: 'cookie' }` | the Frappe `sid` cookie (`credentials: 'include'`) plus `X-Frappe-CSRF-Token` on POSTs | browser apps on the same site |
 | `{ type: 'apiKey', key, header? }` | `Authorization: token <key>` (use `key:secret` for Frappe user API keys), or `<header>: <key>` | servers and scripts |
-| `{ type: 'bearer', getToken }` | `Authorization: Bearer <token>` | **Unsupported.** saas_core v1.x does not validate bearer tokens. Deprecated; logs a warning once. |
 
 `@frappe-saaskit/node`'s `loadTokenFile(path)` warns if the file can be read by group or other users. Never put tokens in front-end code.
 
@@ -224,7 +246,7 @@ The package map, the request lifecycle (CSRF, auth, error envelope), the Razorpa
 
 This is an **alpha**. Breaking changes will come without a deprecation period. These gaps depend on saas_core, not on the SDK:
 
-1. **Personal access tokens / Bearer.** saas_core issues API tokens (`apiTokens.create`) but no request hook validates `Authorization: Bearer`. The SDK marks `bearer` unsupported until that ships.
+1. **Personal access tokens / Bearer.** saas_core issues API tokens (`apiTokens.create`) but no request hook validates `Authorization: Bearer`, so the SDK has no bearer auth mode. Use cookie or Frappe `key:secret` (`apiKey`).
 2. **Idempotency on `admin.tenants.create` and `auth.login`.** saas_core does not deduplicate them, so the SDK never retries them. Once the handlers accept `Idempotency-Key`, they join the retry allowlist.
 3. **Error envelope.** Some Frappe-native exceptions still return `exc_type`/`_server_messages` instead of the v1 `error` schema. The SDK maps both for now.
 4. **CSRF for guests.** The SDK's CSRF bootstrap relies on `auth.me` returning a `csrf_token` for guest sessions, which still needs confirming. If `me` fails, the SDK proceeds without a token.

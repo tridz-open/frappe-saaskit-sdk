@@ -1,4 +1,6 @@
 # @frappe-saaskit/node
+
+> **Experimental.** This package has no consumers yet and has not been verified against a live saas_core. It prints a one-time console notice. Expect breaking changes.
 Helpers for agents and CLIs.
 ```ts
 import { createNodeClient, tokenFromEnv, loadTokenFile } from '@frappe-saaskit/node';

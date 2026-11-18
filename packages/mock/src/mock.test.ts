@@ -226,7 +226,7 @@ describe('billing', () => {
     expect((await post('checkout.create_session', { ...body, slug: 'acme' })).status).toBe(409);
     const r = await post('checkout.create_session', body);
     expect(r.status).toBe(201);
-    expect(r.json.message).toMatchObject({ gateway: 'stripe', tenant: 'shop-one' });
+    expect(r.json.message).toMatchObject({ gateway: 'razorpay', tenant: 'shop-one' });
     expect(r.json.message.session_id).toBeTruthy();
     expect(r.json.message.url).toMatch(/^https:/);
     const t = (await get('tenants.get', { tenant: 'shop-one' })).json.message;

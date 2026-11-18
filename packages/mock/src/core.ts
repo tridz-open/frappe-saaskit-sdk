@@ -133,8 +133,8 @@ function seed(loggedIn: boolean, opts: MockOptions = {}): { store: MockStore; co
     period_start: iso(now - (ago + 30) * DAY), period_end: iso(now - ago * DAY), has_pdf: status !== 'draft', payment_mocked: true });
   const invoices = [inv(3, 'acme', 'paid', 2900, 1), inv(2, 'acme', 'paid', 2900, 31), inv(1, 'acme', 'paid', 2900, 61), inv(4, 'legacy-co', 'open', 9900, 5)];
   const subscriptions = new Map<string, Subscription>([
-    ['acme', { tenant: 'acme', plan: 'pro', status: 'active', gateway: 'stripe', payment_mocked: true, interval: 'month', period_end: iso(now + 29 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: null }],
-    ['legacy-co', { tenant: 'legacy-co', plan: 'business', status: 'past_due', gateway: 'stripe', payment_mocked: true, interval: 'month', period_end: iso(now - 5 * DAY), cancel_at_period_end: false, dunning_stage: 2, trial_end: null }],
+    ['acme', { tenant: 'acme', plan: 'pro', status: 'active', gateway: 'razorpay', payment_mocked: true, interval: 'month', period_end: iso(now + 29 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: null }],
+    ['legacy-co', { tenant: 'legacy-co', plan: 'business', status: 'past_due', gateway: 'razorpay', payment_mocked: true, interval: 'month', period_end: iso(now - 5 * DAY), cancel_at_period_end: false, dunning_stage: 2, trial_end: null }],
   ]);
   const tickets: SupportTicket[] = [
     { name: 'TKT-0001', tenant: 'acme', subject: 'How do I add a custom domain?', status: 'resolved', priority: 'normal', created_at: iso(now - 10 * DAY),
@@ -259,7 +259,7 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
     name: slug, slug, status: 'pending', plan, template: template ?? null, region: region ?? 'eu-west', url: null, custom_domain: null, created_at: iso(), active_job: null, suspend_reason: null });
   function subscribeTenant(t: Tenant, plan: Plan, interval: 'month' | 'year' = 'month') {
     const trial = plan.trial_days ?? 0;
-    store.subscriptions.set(t.name, { tenant: t.name, plan: plan.code, status: trial ? 'trialing' : 'active', gateway: 'stripe', payment_mocked: true, interval,
+    store.subscriptions.set(t.name, { tenant: t.name, plan: plan.code, status: trial ? 'trialing' : 'active', gateway: 'razorpay', payment_mocked: true, interval,
       period_end: iso(Date.now() + 30 * DAY), cancel_at_period_end: false, dunning_stage: 0, trial_end: trial ? iso(Date.now() + trial * DAY) : null });
     store.backups.set(t.name, store.backups.get(t.name) ?? []);
   }
@@ -411,8 +411,8 @@ export function createMockApi(opts: MockOptions = {}): MockApi {
       const interval = str(p, 'interval');
       if (interval !== 'month' && interval !== 'year') invalid('interval', 'Must be month or year');
       for (const k of ['success_url', 'cancel_url']) { try { new URL(str(p, k)); } catch { invalid(k, 'Must be a valid URL'); } }
-      const gateway = (p.gateway as string | undefined) ?? 'stripe';
-      if (!['razorpay', 'stripe', 'paddle'].includes(gateway)) invalid('gateway', 'Unknown gateway');
+      const gateway = (p.gateway as string | undefined) ?? 'razorpay';
+      if (gateway !== 'razorpay') invalid('gateway', 'Unsupported gateway (razorpay only)');
       let tenant: Tenant;
       if (p.tenant) { tenant = tenantOf(p); idle(tenant); }
       else {

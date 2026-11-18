@@ -3,9 +3,7 @@ import { createHttp } from './http';
 import { subscribe as subscribeEvents } from './sse';
 export type AuthStrategy =
   | { type: 'cookie' }
-  | { type: 'apiKey'; key: string; header?: string }
-  /** @deprecated Not supported by saas_core v1.x (no server-side validation of bearer tokens); requests will be rejected. */
-  | { type: 'bearer'; getToken: () => string | Promise<string | null | undefined> };
+  | { type: 'apiKey'; key: string; header?: string };
 export interface RetryOptions {
   retries?: number;
   baseDelayMs?: number;
@@ -126,15 +124,7 @@ export interface SaasClient {
   ): Subscription;
 }
 
-let bearerWarned = false;
-
 export const createClient = (o: ClientOptions): SaasClient => {
-  if (o.auth?.type === 'bearer' && !bearerWarned) {
-    bearerWarned = true;
-    console.warn(
-      '[frappe-saaskit] auth type "bearer" is not supported by saas_core v1.x; requests will be rejected. Use "cookie" or "apiKey".',
-    );
-  }
   const http = createHttp(o);
   const get = <X>(p: string, query?: Record<string, string | undefined>) => http.request<X>('GET', p, { query });
   const post = <X>(p: string, body?: unknown) => http.request<X>('POST', p, { body: body ?? {} });

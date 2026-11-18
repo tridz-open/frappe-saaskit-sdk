@@ -25,11 +25,6 @@ describe('auth strategies', () => {
     await mk(f, { auth: { type: 'apiKey', key: 'abc', header: 'X-Key' } }).plans.list();
     expect(call(f, 1).init.headers.get('X-Key')).toBe('abc');
   });
-  it('bearer async', async () => {
-    const f = vi.fn(async () => ok({ email: 'a' }));
-    await mk(f, { auth: { type: 'bearer', getToken: async () => 'tok' } }).me.get();
-    expect(call(f, 0).init.headers.get('Authorization')).toBe('Bearer tok');
-  });
   it('CSRF header sent after login with cookie auth, cleared on logout', async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(ok({ email: 'guest' })) // bootstrap me: guest session, no token
@@ -50,7 +45,7 @@ describe('auth strategies', () => {
   });
   it('CSRF not sent on GET or non-cookie auth', async () => {
     const f = vi.fn(async () => ok({ email: 'a', csrf_token: 'C' }));
-    const c = mk(f, { auth: { type: 'bearer', getToken: () => 't' } });
+    const c = mk(f, { auth: { type: 'apiKey', key: 't' } });
     await c.auth.login({ email: 'a', password: 'p' } as any);
     await c.auth.login({ email: 'a', password: 'p' } as any);
     expect(call(f, 1).init.headers.get('X-Frappe-CSRF-Token')).toBeNull();
@@ -264,10 +259,10 @@ describe('sse', () => {
       `id: 1\ndata: ${JSON.stringify(ev('job.updated', { state: 'running' }, { job: 'j1' }))}\n\n` +
       `id: 2\ndata: ${JSON.stringify(ev('job.updated', { state: 'succeeded' }, { job: 'j1' }))}\n\n`));
     const evs: any[] = [];
-    mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).subscribe({ jobId: 'j1' }, (e) => evs.push(e));
+    mk(f, { auth: { type: 'apiKey', key: 't' } }).subscribe({ jobId: 'j1' }, (e) => evs.push(e));
     await vi.waitFor(() => expect(evs.map((e) => e.data.state)).toEqual(['running', 'succeeded']));
     expect(call(f, 0).url).toBe(`${P}events.stream?job=j1`);
-    expect(call(f, 0).init.headers.get('Authorization')).toBe('Bearer t');
+    expect(call(f, 0).init.headers.get('Authorization')).toBe('token t');
     expect(call(f, 0).init.headers.get('Accept')).toBe('text/event-stream');
     await new Promise((r) => setTimeout(r, 30));
     expect(f).toHaveBeenCalledTimes(1);
@@ -468,7 +463,7 @@ describe('v1.3 config + admin tenants', () => {
 describe('admin.betaAccess', () => {
   it('list is a GET to the contract path', async () => {
     const f = vi.fn(async () => ok({ signup_mode: 'invite', patterns: [] }));
-    const r = await mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.list();
+    const r = await mk(f, { auth: { type: 'apiKey', key: 't' } }).admin.betaAccess.list();
     expect(call(f, 0).url).toBe(`${P}admin.beta_access.list`);
     expect(call(f, 0).init.method).toBe('GET');
     expect(r.patterns).toEqual([]);
@@ -476,7 +471,7 @@ describe('admin.betaAccess', () => {
   it('add posts entries, send_invite and note', async () => {
     const res = { added: ['a@b.co'], already_listed: [], invites_sent: ['a@b.co'], invites_failed: [], skipped_domains: [] };
     const f = vi.fn(async () => ok(res));
-    const r = await mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.add({ entries: ['a@b.co'], send_invite: true, note: 'n' });
+    const r = await mk(f, { auth: { type: 'apiKey', key: 't' } }).admin.betaAccess.add({ entries: ['a@b.co'], send_invite: true, note: 'n' });
     expect(call(f, 0).url).toBe(`${P}admin.beta_access.add`);
     expect(call(f, 0).init.method).toBe('POST');
     expect(bodyOf(f, 0)).toEqual({ entries: ['a@b.co'], send_invite: true, note: 'n' });
@@ -486,7 +481,7 @@ describe('admin.betaAccess', () => {
     const f = vi.fn()
       .mockResolvedValueOnce(ok({ removed: '@b.co' }))
       .mockResolvedValueOnce(ok({ email: 'a@b.co', sent: true }));
-    const c = mk(f, { auth: { type: 'bearer', getToken: () => 't' } });
+    const c = mk(f, { auth: { type: 'apiKey', key: 't' } });
     expect((await c.admin.betaAccess.remove('@b.co')).removed).toBe('@b.co');
     expect(call(f, 0).url).toBe(`${P}admin.beta_access.remove`);
     expect(bodyOf(f, 0)).toEqual({ pattern: '@b.co' });
@@ -496,7 +491,7 @@ describe('admin.betaAccess', () => {
   });
   it('maps a 403 to ForbiddenError', async () => {
     const f = vi.fn(async () => err(403, { code: 'forbidden', message: 'System Manager role required' }));
-    await expect(mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.list()).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(mk(f, { auth: { type: 'apiKey', key: 't' } }).admin.betaAccess.list()).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 
@@ -505,7 +500,7 @@ describe('contract fields', () => {
     const f = vi.fn()
       .mockResolvedValueOnce(ok({ email: 'a', email_verified: true }))
       .mockResolvedValueOnce(ok({ name: 'j', started_at: '2026-01-01T00:00:00Z', steps: [{ name: 's', key: 's', state: 'running', status: 'running' }] }));
-    const c = mk(f, { auth: { type: 'bearer', getToken: () => 't' } });
+    const c = mk(f, { auth: { type: 'apiKey', key: 't' } });
     const me = await c.me.get();
     const verified: boolean | undefined = me.email_verified;
     expect(verified).toBe(true);
