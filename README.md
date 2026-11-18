@@ -6,12 +6,6 @@
 > [Verified vs experimental](#verified-vs-experimental)); everything else is experimental. Do not build a production
 > business on this yet. Not on npm: install from [GitHub release tarballs](#install).
 
-## Use at your own risk, and contributions
-
-**Use at your own risk:** this is early alpha software, provided "as is" without warranty of any kind (see [LICENSE](LICENSE)). Don't use it for production data you can't afford to lose.
-
-**Contributions:** we are not accepting pull requests or outside contributions at this time. If you find a bug or a problem, please [open a GitHub issue](https://github.com/tridz-open/frappe-saaskit-sdk/issues).
-
 ## What is this?
 
 A TypeScript SDK for building the **customer-facing side of a SaaS** (signup, workspaces/tenants, billing and checkout,
@@ -305,3 +299,9 @@ Open an issue on this repository.
 ## License
 
 [MIT](LICENSE), Copyright (c) 2026 Tridz Technologies.
+
+## Use at your own risk, and contributions
+
+**Use at your own risk:** this is early alpha software, provided "as is" without warranty of any kind (see [LICENSE](LICENSE)). Don't use it for production data you can't afford to lose.
+
+**Contributions:** we are not accepting pull requests or outside contributions at this time. If you find a bug or a problem, please [open a GitHub issue](https://github.com/tridz-open/frappe-saaskit-sdk/issues).
