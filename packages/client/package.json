@@ -1,6 +1,6 @@
 {
   "name": "@frappe-saaskit/client",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Framework-free typed client for the saas_core SaaS API (Frappe)",
   "license": "MIT",
   "author": "Tridz Technologies",
