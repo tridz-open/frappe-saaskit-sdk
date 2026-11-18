@@ -184,7 +184,8 @@ unit tests against fetch stubs or the mock only, and/or **disabled by default on
 | Jobs | `jobs` | Verified |
 | Checkout | `checkout.createSession` (Razorpay, `order` mode) | Verified |
 | Beta access (admin) | `admin.betaAccess` (list, add, remove, resend) | Verified |
-| Billing | `billing` (previewCancel, cancel, previewChange), `subscription.get`, `checkout.createSession` subscription mode | Experimental (new in 2.0.0-alpha, unit tests only) |
+| Billing | `billing.previewCancel`, `billing.cancel` (day-based pro-rata refund via Razorpay), `billing.previewChange` + `tenants.changePlan` upgrade via payment link | **Verified live** (cancel + refund and upgrade tested on a live deployment, Razorpay test mode) |
+| Billing (other) | `subscription.get`, downgrade path of `changePlan`, `checkout.createSession` subscription mode | Experimental |
 | Invoices and cards | `invoices` (incl. `pdf`), `paymentMethods.portalLink` | Experimental |
 | Tenant extras | `tenants.changePlan`, `openLoginLink`, `suspendStatus`, `requestDelete`; `backups` list/create | Experimental |
 | Admin and profile | `admin.tenants`, `me.update`, password reset / email verification | Experimental |
@@ -298,7 +299,7 @@ Open an issue on this repository.
 ## Related
 
 - **saas_core**: the backend Frappe app and source of the contract (`tridz-dev/saas_core`, currently private, coming soon).
-- **fcctl**: operator command-line tooling that accompanies saas_core (`tridz-open/fcctl`, currently private, coming soon).
+- **fcctl**: a Python CLI and library for Frappe Cloud (sites, apps, backups, provisioning from a golden backup, with an approval gate for destructive operations). saas_core uses it to create customer sites ([tridz-open/fcctl](https://github.com/tridz-open/fcctl), currently private, coming soon).
 - **frappe-saaskit-starter**: a starter app built on this SDK (`tridz-open/frappe-saaskit-starter`, currently private, coming soon).
 
 ## License
