@@ -1,6 +1,6 @@
 {
   "name": "@frappe-saaskit/react",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "React provider, TanStack Query hooks and Razorpay checkout helper for @frappe-saaskit/client",
   "license": "MIT",
   "author": "Tridz Technologies",
