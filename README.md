@@ -13,7 +13,7 @@ invoices, backups) on top of **saas_core**.
 
 **saas_core** is a Frappe app that acts as the SaaS control plane: it provisions customer sites, tracks plans and
 subscriptions, takes payments (Razorpay is the verified gateway) and exposes a versioned JSON API. saas_core is
-**currently private, coming soon** (`tridz-dev/saas_core`). Its OpenAPI contract is vendored here in
+[open source](https://github.com/tridz-open/saas_core) (`tridz-open/saas_core`). Its OpenAPI contract is vendored here in
 [`spec/v1.yaml`](spec/v1.yaml) (currently **2.0.0-alpha.1**), and the client's types are generated from it, so you can
 read the full API surface without access to the backend.
 
@@ -292,7 +292,7 @@ Open an issue on this repository.
 
 ## Related
 
-- **saas_core**: the backend Frappe app and source of the contract (`tridz-dev/saas_core`, currently private, coming soon).
+- **saas_core**: the backend Frappe app and source of the contract ([tridz-open/saas_core](https://github.com/tridz-open/saas_core)).
 - **fcctl**: a Python CLI and library for Frappe Cloud (sites, apps, backups, provisioning from a golden backup, with an approval gate for destructive operations). saas_core uses it to create customer sites ([tridz-open/fcctl](https://github.com/tridz-open/fcctl), currently private, coming soon).
 - **frappe-saaskit-starter**: a starter app built on this SDK (`tridz-open/frappe-saaskit-starter`, currently private, coming soon).
 
