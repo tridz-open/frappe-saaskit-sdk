@@ -35,6 +35,28 @@ export type PublicConfig = S['PublicConfig'];
 export type SlugAvailability = S['SlugAvailability'];
 export type AdminTenantCreateRequest = S['AdminTenantCreateRequest'];
 export type AdminTenantInviteRequest = S['AdminTenantInviteRequest'];
+/** One beta-access allowlist row (admin.beta_access.list). account_exists/verified/has_tenant are null for domain patterns. */
+export interface BetaAccessEntry {
+  pattern: string;
+  kind: 'email' | 'domain';
+  note: string | null;
+  invited_at: string | null;
+  account_exists: boolean | null;
+  verified: boolean | null;
+  has_tenant: boolean | null;
+}
+export interface BetaAccessList { signup_mode: string; patterns: BetaAccessEntry[]; }
+/** `entries`: emails and/or `@domain` patterns, as an array or a newline/comma/semicolon separated string (max 200). */
+export interface BetaAccessAddRequest { entries: string[] | string; send_invite?: boolean; note?: string; }
+export interface BetaAccessAddResult {
+  added: string[];
+  already_listed: string[];
+  invites_sent: string[];
+  invites_failed: string[];
+  skipped_domains: string[];
+}
+export interface BetaAccessRemoveResult { removed: string; }
+export interface BetaAccessResendResult { email: string; sent: boolean; }
 export type TenantCreateRequest = S['TenantCreateRequest'];
 export type TenantCreated = S['TenantCreated'];
 export type SuspendStatus = S['SuspendStatus'];

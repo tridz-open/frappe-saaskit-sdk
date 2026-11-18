@@ -464,3 +464,55 @@ describe('v1.3 config + admin tenants', () => {
     await expect(mk(f).admin.tenants.create({ owner_email: 'o@x.com', plan: 'pro' })).rejects.toMatchObject({ code: 'capacity_exhausted', status: 503 });
   });
 });
+
+describe('admin.betaAccess', () => {
+  it('list is a GET to the contract path', async () => {
+    const f = vi.fn(async () => ok({ signup_mode: 'invite', patterns: [] }));
+    const r = await mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.list();
+    expect(call(f, 0).url).toBe(`${P}admin.beta_access.list`);
+    expect(call(f, 0).init.method).toBe('GET');
+    expect(r.patterns).toEqual([]);
+  });
+  it('add posts entries, send_invite and note', async () => {
+    const res = { added: ['a@b.co'], already_listed: [], invites_sent: ['a@b.co'], invites_failed: [], skipped_domains: [] };
+    const f = vi.fn(async () => ok(res));
+    const r = await mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.add({ entries: ['a@b.co'], send_invite: true, note: 'n' });
+    expect(call(f, 0).url).toBe(`${P}admin.beta_access.add`);
+    expect(call(f, 0).init.method).toBe('POST');
+    expect(bodyOf(f, 0)).toEqual({ entries: ['a@b.co'], send_invite: true, note: 'n' });
+    expect(r).toEqual(res);
+  });
+  it('remove and resend post their single field', async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(ok({ removed: '@b.co' }))
+      .mockResolvedValueOnce(ok({ email: 'a@b.co', sent: true }));
+    const c = mk(f, { auth: { type: 'bearer', getToken: () => 't' } });
+    expect((await c.admin.betaAccess.remove('@b.co')).removed).toBe('@b.co');
+    expect(call(f, 0).url).toBe(`${P}admin.beta_access.remove`);
+    expect(bodyOf(f, 0)).toEqual({ pattern: '@b.co' });
+    expect((await c.admin.betaAccess.resend('a@b.co')).sent).toBe(true);
+    expect(call(f, 1).url).toBe(`${P}admin.beta_access.resend`);
+    expect(bodyOf(f, 1)).toEqual({ email: 'a@b.co' });
+  });
+  it('maps a 403 to ForbiddenError', async () => {
+    const f = vi.fn(async () => err(403, { code: 'forbidden', message: 'System Manager role required' }));
+    await expect(mk(f, { auth: { type: 'bearer', getToken: () => 't' } }).admin.betaAccess.list()).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('contract fields', () => {
+  it('Me.email_verified and Job.started_at / step aliases are typed', async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(ok({ email: 'a', email_verified: true }))
+      .mockResolvedValueOnce(ok({ name: 'j', started_at: '2026-01-01T00:00:00Z', steps: [{ name: 's', key: 's', state: 'running', status: 'running' }] }));
+    const c = mk(f, { auth: { type: 'bearer', getToken: () => 't' } });
+    const me = await c.me.get();
+    const verified: boolean | undefined = me.email_verified;
+    expect(verified).toBe(true);
+    const job = await c.jobs.get('j');
+    const startedAt: string | null | undefined = job.started_at;
+    expect(startedAt).toBe('2026-01-01T00:00:00Z');
+    const step: { key?: string; status?: string } | undefined = job.steps?.[0];
+    expect(step?.key).toBe('s');
+  });
+});

@@ -2675,6 +2675,9 @@ components:
           type: integer
         csrf_token:
           type: string
+        email_verified:
+          type: boolean
+          description: true when the account email is verified or verification is not required by the signup mode
     CheckoutRequest:
       type: object
       required:
@@ -3085,6 +3088,12 @@ components:
           type:
           - string
           - 'null'
+        key:
+          type: string
+          description: alias of name
+        status:
+          type: string
+          description: alias of state
     Job:
       type: object
       required:
@@ -3126,6 +3135,12 @@ components:
           - string
           - 'null'
           format: date-time
+        started_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: first step start, else job creation
     SupportTicket:
       type: object
       required:
